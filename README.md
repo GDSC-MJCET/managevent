@@ -13,9 +13,7 @@ This file is the source of truth. Humans and coding agents both read it before t
 
 **Roles:** `student`, `club_admin`, `super_admin` (seeded, no signup path).
 
----
-
-## 2. Stack and why
+### 1.1 Stack and why
 
 | Layer | Choice | Why |
 |---|---|---|
@@ -26,11 +24,11 @@ This file is the source of truth. Humans and coding agents both read it before t
 | ORM | Prisma | Schema file is readable by agents, migrations are generated, types flow to code. |
 | Validation | zod, shared package | One schema validates the server request and types the client. |
 | Auth | JWT (7 days) in `Authorization: Bearer`, bcrypt for passwords | No refresh tokens in v1. |
-| Realtime | Socket.io, live room only | See 2.1. |
-| Files | Multer (memory) -> Cloudinary, one service | See 2.2. |
+| Realtime | Socket.io, live room only | See 1.2. |
+| Files | Multer (memory) -> Cloudinary, one service | See 1.3. |
 | Tests | Vitest + Supertest | Fast, same TS setup. |
 
-### 2.1 Where sockets are needed
+### 1.2 Where sockets are needed
 
 Only the live room, and only server -> client pushes:
 
@@ -44,7 +42,7 @@ Only the live room, and only server -> client pushes:
 Rule: all client actions (answer, vote, ask) stay REST. Sockets only broadcast. This keeps logic testable without a socket client.
 Alternative if sockets feel heavy: SSE gives the same server -> client push with less setup.
 
-### 2.2 Why Multer exists
+### 1.3 Why Multer exists
 
 Express cannot read `multipart/form-data`. Multer is the parser that turns an uploaded file into `req.file`. Without it, no file reaches the server.
 
@@ -57,7 +55,7 @@ Payment screenshots use Cloudinary `authenticated` delivery (private). Only the 
 
 ---
 
-## 3. Repo layout and ownership
+## 2. Repo layout and ownership
 
 ```
 managevent/
@@ -97,12 +95,12 @@ Env: `DATABASE_URL`, `JWT_SECRET`, `CLIENT_ORIGIN`, `CLOUDINARY_CLOUD_NAME`, `CL
 
 ---
 
-## 4. Agent rules (read first)
+## 3. Agent rules (read first)
 
-1. Work only inside your own module folders (section 3). Anything shared needs a PR note, not a silent edit.
+1. Work only inside your own module folders (section 2). Anything shared needs a PR note, not a silent edit.
 2. Contract first. Before writing a route or page, write its zod schema in `shared/contracts/<module>.ts` and a fixture in `shared/mocks/<module>.json`.
-3. Never invent endpoints, tables, fields or statuses. If it is not in this file, ask or add it to section 10 (Open questions).
-4. Every endpoint returns `{ ok, data, error }` (section 5.2). No exceptions.
+3. Never invent endpoints, tables, fields or statuses. If it is not in this file, ask or add it to section 9 (Open questions).
+4. Every endpoint returns `{ ok, data, error }` (section 4.2). No exceptions.
 5. Every business rule in section 6 gets a test. A task is not done until its acceptance criteria pass.
 6. Run `npm run typecheck && npm run lint && npm test` before declaring a task done.
 7. Never write a second upload handler. Files go through `POST /api/uploads` only.
@@ -111,9 +109,9 @@ Env: `DATABASE_URL`, `JWT_SECRET`, `CLIENT_ORIGIN`, `CLOUDINARY_CLOUD_NAME`, `CL
 
 ---
 
-## 5. Global contracts
+## 4. Global contracts
 
-### 5.1 Auth
+### 4.1 Auth
 
 - JWT payload: `{ sub: userId, role }`.
 - `requireAuth` -> 401 if missing or invalid.
@@ -121,7 +119,7 @@ Env: `DATABASE_URL`, `JWT_SECRET`, `CLIENT_ORIGIN`, `CLOUDINARY_CLOUD_NAME`, `CL
 - `requireClubOwner` -> loads the club or event's club and 403 unless `club.owner_id === user.id`.
 - Roles are checked on the server. Client route guards are cosmetic only.
 
-### 5.2 Response shape
+### 4.2 Response shape
 
 ```json
 { "ok": true,  "data": {}, "error": null }
@@ -130,7 +128,7 @@ Env: `DATABASE_URL`, `JWT_SECRET`, `CLIENT_ORIGIN`, `CLOUDINARY_CLOUD_NAME`, `CL
 
 Error codes (extend here, not ad hoc): `VALIDATION`, `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `EVENT_FULL`, `EVENT_NOT_OPEN`, `QR_REQUIRED`, `CAPACITY_BELOW_APPROVED`, `ALREADY_RSVPED`, `NOT_APPROVED`, `QUESTION_CLOSED`, `ALREADY_ANSWERED`, `RECAP_LOCKED`, `UPLOAD_REJECTED`.
 
-### 5.3 Conventions
+### 4.3 Conventions
 
 - IDs: UUID. Timestamps: `timestamptz`, UTC, ISO strings in JSON.
 - Pagination: `?page=1&limit=20` -> `data: { items, page, limit, total }`.
@@ -138,7 +136,7 @@ Error codes (extend here, not ad hoc): `VALIDATION`, `UNAUTHENTICATED`, `FORBIDD
 
 ---
 
-## 6. Data model
+## 5. Data model
 
 Robin writes the first migration with all tables below. After that each dev edits only their own.
 
@@ -163,7 +161,7 @@ Robin writes the first migration with all tables below. After that each dev edit
 
 ---
 
-## 7. State machines and business rules
+## 6. State machines and business rules
 
 Each rule is testable. Rule IDs are referenced in tasks.
 
@@ -211,15 +209,15 @@ Each rule is testable. Rule IDs are referenced in tasks.
 
 ---
 
-## 8. Tasks
+## 7. Tasks
 
 Format: `ID | task | depends on | acceptance`. Check the box when acceptance passes.
 
 ### Robin: foundation, auth, clubs
 
 - [ ] **R-01** Monorepo setup: workspaces, TS configs, eslint, vitest, scripts, env validation (`env.ts` with zod). | none | `npm run dev` starts client and server; `/api/health` returns ok shape.
-- [ ] **R-02** Prisma schema with all tables from section 6, first migration, seed (1 super_admin, 3 approved demo clubs, 2 events, 5 students). | R-01 | `db:migrate` and `db:seed` run clean on an empty DB.
-- [ ] **R-03** Error handler, `validate` middleware, response helper, CORS. | R-01 | Thrown `AppError('FORBIDDEN')` becomes the 5.2 shape with correct status.
+- [ ] **R-02** Prisma schema with all tables from section 5, first migration, seed (1 super_admin, 3 approved demo clubs, 2 events, 5 students). | R-01 | `db:migrate` and `db:seed` run clean on an empty DB.
+- [ ] **R-03** Error handler, `validate` middleware, response helper, CORS. | R-01 | Thrown `AppError('FORBIDDEN')` becomes the 4.2 shape with correct status.
 - [ ] **R-04** Auth: `POST /api/auth/signup`, `POST /api/auth/login`, `GET /api/auth/me`. Signup cannot create `super_admin`. | R-02, R-03 | Duplicate email -> `CONFLICT`; wrong password -> `UNAUTHENTICATED`; JWT verifies.
 - [ ] **R-05** Guards: `requireAuth`, `requireRole`, `requireClubOwner`. Export from `middleware/`. | R-04 | Unit tests for 401, 403, owner pass.
 - [ ] **R-06** Design system in `client/src/ui`: tokens, Button, Input, Select, Modal, Toast, Layout, `ProtectedRoute`. | R-01 | Storybook-less demo page lists every component.
@@ -269,7 +267,7 @@ Format: `ID | task | depends on | acceptance`. Check the box when acceptance pas
 
 ---
 
-## 9. Phases and cross-dependencies
+## 8. Phases and cross-dependencies
 
 | Days | Lands | Unblocks |
 |---|---|---|
@@ -282,7 +280,7 @@ Rule: if your dependency is not merged, build against the mock and mark the PR `
 
 ---
 
-## 10. Open questions
+## 9. Open questions
 
 - Does a club have one admin account or several? (v1 assumes one owner per club.)
 - Can students RSVP to an event that has already started? (v1 assumes no: only `open`.)
@@ -291,6 +289,6 @@ Rule: if your dependency is not merged, build against the mock and mark the PR `
 
 ---
 
-## 11. Definition of done (v1)
+## 10. Definition of done (v1)
 
 A real club hosts a real event: registers, gets approved, publishes a paid event, students RSVP with screenshots, club verifies, runs a live quiz with doubts, marks the event ended and publishes a recap with gallery, certificates and leaderboard. No manual DB edits.
