@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+@theme {
+  --color-fog: #e8edef;
+  --color-fog-dark: #c3cfd4;
+  --color-ink: #13242c;
+  --color-paper: #f7f9fa;
+  --color-ali: #c42d63;
+  --color-amar: #1f6f8b;
+  --color-ayesha: #b8860b;
+  --color-anas: #2f7d4f;
+  --color-ayub: #8a4b2a;
+  --color-adnaan: #6b4fa0;
+  --font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 4.5rem;
+  }
+
+  body {
+    @apply bg-paper font-sans text-ink antialiased;
+  }
+
+  ::selection {
+    @apply bg-ink text-white;
+  }
+}

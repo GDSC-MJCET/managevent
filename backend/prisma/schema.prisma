@@ -1,0 +1,416 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  student
+  club_admin
+  super_admin
+}
+
+enum RsvpStatus {
+  pending
+  approved
+  rejected
+  waitlist
+  cancelled
+}
+
+enum QuestionStatus {
+  draft
+  open
+  closed
+}
+
+enum LeaderboardSource {
+  quiz
+  manual
+}
+
+enum EventStatus {
+  draft
+  open
+  live
+  ended
+}
+
+enum ApprovalMode {
+  auto_until_full
+  manual
+}
+
+enum DoubtStatus {
+  open
+  answered
+}
+
+enum PaymentStatus {
+  pending
+  verified
+  rejected
+}
+
+enum RsvpFieldType {
+  text
+  textarea
+  number
+  select
+  checkbox
+}
+
+enum ClubStatus {
+  pending
+  approved
+  rejected
+}
+
+enum UploadKind {
+  image
+  pdf
+}
+
+enum UploadAccess {
+  public
+  private
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         Role     @default(student)
+  rollNumber   String?  @map("roll_number")
+  branch       String?
+  year         Int?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  passwordResets     PasswordReset[]
+  rsvps              Rsvp[]
+  clubs              Club[]
+  quizAnswers        QuizAnswer[]
+  leaderboardEntries LeaderboardEntry[]
+  doubts             Doubt[]
+  doubtVotes         DoubtVote[]
+  certificates       Certificate[]
+  uploads            Upload[]
+
+  @@map("users")
+}
+
+model PasswordReset {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_resets")
+}
+
+model Rsvp {
+  id        String     @id @default(uuid()) @db.Uuid
+  eventId   String     @map("event_id") @db.Uuid
+  userId    String     @map("user_id") @db.Uuid
+  answers   Json?
+  status    RsvpStatus @default(pending)
+  createdAt DateTime   @default(now()) @map("created_at")
+
+  event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payment Payment?
+  checkin Checkin?
+
+  @@unique([eventId, userId])
+  @@index([eventId, status])
+  @@map("rsvps")
+}
+
+model Quiz {
+  id        String   @id @default(uuid()) @db.Uuid
+  eventId   String   @map("event_id") @db.Uuid
+  title     String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  event     Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  questions Question[]
+
+  @@index([eventId])
+  @@map("quizzes")
+}
+
+model Question {
+  id           String         @id @default(uuid()) @db.Uuid
+  quizId       String         @map("quiz_id") @db.Uuid
+  text         String
+  options      Json
+  correctIndex Int            @map("correct_index")
+  points       Int            @default(10)
+  timeLimitSec Int            @map("time_limit_sec")
+  position     Int            @default(0)
+  status       QuestionStatus @default(draft)
+  openedAt     DateTime?      @map("opened_at")
+
+  quiz    Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  answers QuizAnswer[]
+
+  @@index([quizId, position])
+  @@map("questions")
+}
+
+model QuizAnswer {
+  id            String   @id @default(uuid()) @db.Uuid
+  questionId    String   @map("question_id") @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  chosenIndex   Int      @map("chosen_index")
+  isCorrect     Boolean  @map("is_correct")
+  pointsAwarded Int      @default(0) @map("points_awarded")
+  answeredAt    DateTime @default(now()) @map("answered_at")
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, userId])
+  @@map("quiz_answers")
+}
+
+model LeaderboardEntry {
+  id        String            @id @default(uuid()) @db.Uuid
+  eventId   String            @map("event_id") @db.Uuid
+  userId    String            @map("user_id") @db.Uuid
+  source    LeaderboardSource
+  points    Int
+  note      String?
+  createdAt DateTime          @default(now()) @map("created_at")
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, points])
+  @@map("leaderboard_entries")
+}
+
+model Event {
+  id          String      @id @default(uuid()) @db.Uuid
+  clubId      String      @map("club_id") @db.Uuid
+  title       String
+  description String
+  bannerUrl   String?     @map("banner_url")
+  venue       String
+  startsAt    DateTime    @map("starts_at")
+  endsAt      DateTime    @map("ends_at")
+  status      EventStatus @default(draft)
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  club               Club               @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  settings           EventSettings?
+  rsvps              Rsvp[]
+  rsvpFormFields     RsvpFormField[]
+  quizzes            Quiz[]
+  doubts             Doubt[]
+  leaderboardEntries LeaderboardEntry[]
+  speakers           Speaker[]
+  galleryItems       GalleryItem[]
+  certificates       Certificate[]
+  techLinks          TechLink[]
+  recapSettings      RecapSettings?
+
+  @@index([status, startsAt])
+  @@map("events")
+}
+
+model EventSettings {
+  eventId      String       @id @map("event_id") @db.Uuid
+  capacity     Int
+  approvalMode ApprovalMode @default(auto_until_full) @map("approval_mode")
+  isPaid       Boolean      @default(false) @map("is_paid")
+  price        Decimal?     @db.Decimal(10, 2)
+  qrUrl        String?      @map("qr_url")
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@map("event_settings")
+}
+
+model Doubt {
+  id        String      @id @default(uuid()) @db.Uuid
+  eventId   String      @map("event_id") @db.Uuid
+  userId    String      @map("user_id") @db.Uuid
+  text      String
+  status    DoubtStatus @default(open)
+  answer    String?
+  pinned    Boolean     @default(false)
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  event Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  votes DoubtVote[]
+
+  @@index([eventId, pinned, createdAt])
+  @@map("doubts")
+}
+
+model DoubtVote {
+  doubtId   String   @map("doubt_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  doubt Doubt @relation(fields: [doubtId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([doubtId, userId])
+  @@map("doubt_votes")
+}
+
+model Payment {
+  id            String        @id @default(uuid()) @db.Uuid
+  rsvpId        String        @unique @map("rsvp_id") @db.Uuid
+  screenshotUrl String        @map("screenshot_url")
+  status        PaymentStatus @default(pending)
+  rejectReason  String?       @map("reject_reason")
+  verifiedBy    String?       @map("verified_by") @db.Uuid
+  verifiedAt    DateTime?     @map("verified_at")
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  rsvp Rsvp @relation(fields: [rsvpId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+model Checkin {
+  id          String   @id @default(uuid()) @db.Uuid
+  rsvpId      String   @unique @map("rsvp_id") @db.Uuid
+  checkedInAt DateTime @default(now()) @map("checked_in_at")
+  checkedInBy String   @map("checked_in_by") @db.Uuid
+
+  rsvp Rsvp @relation(fields: [rsvpId], references: [id], onDelete: Cascade)
+
+  @@map("checkins")
+}
+
+model RsvpFormField {
+  id       String        @id @default(uuid()) @db.Uuid
+  eventId  String        @map("event_id") @db.Uuid
+  label    String
+  type     RsvpFieldType
+  required Boolean       @default(false)
+  position Int           @default(0)
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, position])
+  @@map("rsvp_form_fields")
+}
+
+model Club {
+  id             String     @id @default(uuid()) @db.Uuid
+  ownerId        String     @unique @map("owner_id") @db.Uuid
+  name           String     @unique
+  logoUrl        String?    @map("logo_url")
+  description    String
+  facultyAdvisor String     @map("faculty_advisor")
+  contactEmail   String     @map("contact_email")
+  socials        Json?
+  status         ClubStatus @default(pending)
+  rejectReason   String?    @map("reject_reason")
+  createdAt      DateTime   @default(now()) @map("created_at")
+
+  owner  User    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  events Event[]
+
+  @@index([status])
+  @@map("clubs")
+}
+
+model Speaker {
+  id       String  @id @default(uuid()) @db.Uuid
+  eventId  String  @map("event_id") @db.Uuid
+  name     String
+  bio      String?
+  photoUrl String? @map("photo_url")
+  topic    String?
+  links    Json?
+  position Int     @default(0)
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, position])
+  @@map("speakers")
+}
+
+model Upload {
+  id         String       @id @default(uuid()) @db.Uuid
+  uploaderId String       @map("uploader_id") @db.Uuid
+  kind       UploadKind
+  mime       String
+  size       Int
+  fileUrl    String       @map("file_url")
+  publicId   String       @map("public_id")
+  access     UploadAccess @default(public)
+  createdAt  DateTime     @default(now()) @map("created_at")
+
+  uploader User @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  @@map("uploads")
+}
+
+model GalleryItem {
+  id       String  @id @default(uuid()) @db.Uuid
+  eventId  String  @map("event_id") @db.Uuid
+  fileUrl  String  @map("file_url")
+  caption  String?
+  position Int     @default(0)
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, position])
+  @@map("gallery_items")
+}
+
+model Certificate {
+  id       String   @id @default(uuid()) @db.Uuid
+  eventId  String   @map("event_id") @db.Uuid
+  userId   String   @map("user_id") @db.Uuid
+  fileUrl  String   @map("file_url")
+  issuedAt DateTime @default(now()) @map("issued_at")
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@map("certificates")
+}
+
+model TechLink {
+  id          String  @id @default(uuid()) @db.Uuid
+  eventId     String  @map("event_id") @db.Uuid
+  title       String
+  description String?
+  githubUrl   String? @map("github_url")
+  url         String?
+  position    Int     @default(0)
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, position])
+  @@map("tech_links")
+}
+
+model RecapSettings {
+  eventId     String    @id @map("event_id") @db.Uuid
+  published   Boolean   @default(false)
+  publishedAt DateTime? @map("published_at")
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@map("recap_settings")
+}

@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+
+# env (holds your DB password)
+.env
+.env.*
+!.env.example
+
+# builds
+.next/
+dist/
+build/
+out/
+
+# logs
+*.log
+npm-debug.log*
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
