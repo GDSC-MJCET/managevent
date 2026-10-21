@@ -63,7 +63,7 @@ Everyone carries the same load: eleven REST endpoints, six or seven pages, three
 - Pages: `/events/:id/live` (tabs: Quiz, Ask a doubt, Meet the speaker), `/club/events/:id/live` (control room), `/club/events/:id/quiz` (builder), quiz results screen, `LeaderboardPanel`, `useSocket` hook and room state
 - Also owns: the socket gateway and `emitToRoom(eventId, name, payload)`
 
-**Syed Ayesha: Events and live doubts**
+**Syeda Ayesha: Events and live doubts**
 - Tables: `events`, `event_settings`, `doubts`, `doubt_votes`
 - Pages: `/` (Discover), `/events/:id`, `/club/events`, `/club/events/new`, `/club/events/:id/edit`, Doubts board (audience tab and club moderation panel), `EventCard`
 
