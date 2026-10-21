@@ -1,4 +1,4 @@
-﻿import crypto from 'node:crypto'
+import crypto from 'node:crypto'
 import type { Request, Response, NextFunction } from 'express'
 import { prisma } from '../../db/index.js'
 import { ApiError } from '../../lib/errors.js'
@@ -10,6 +10,9 @@ import type {
   PatchRsvpBody,
   BulkApproveRsvpsBody,
   RsvpStatus,
+  GetEventPaymentsQuery,
+  PatchPaymentBody,
+  PaymentStatus,
 } from './schema.js'
 import { getRsvpTransitionService } from './services/rsvpTransitionProvider.js'
 import { generateAttendeesCsv } from './services/csvExport.js'
@@ -408,3 +411,175 @@ export async function exportEventRsvps(
     next(err)
   }
 }
+
+// ── AN-03: Payment Verification ─────────────────────────────────────────────
+
+export async function getEventPayments(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const rawId = req.params.id ?? req.params.eventId
+  const eventId = Array.isArray(rawId) ? rawId[0] : rawId
+
+  if (!eventId) {
+    return next(new ApiError('VALIDATION', 'Event ID is required'))
+  }
+
+  const query = req.query as unknown as GetEventPaymentsQuery
+  const page = query.page ?? 1
+  const limit = query.limit ?? 20
+  const status = query.status as PaymentStatus | undefined
+
+  try {
+    const where = {
+      rsvp: {
+        eventId,
+      },
+      ...(status ? { status } : {}),
+    }
+
+    const [total, payments] = await Promise.all([
+      prisma.payment.count({ where }),
+      prisma.payment.findMany({
+        where,
+        orderBy: { createdAt: 'asc' },
+        skip: (page - 1) * limit,
+        take: limit,
+        include: {
+          rsvp: {
+            select: {
+              id: true,
+              userId: true,
+              status: true,
+              answers: true,
+              user: {
+                select: {
+                  name: true,
+                  email: true,
+                  rollNumber: true,
+                  branch: true,
+                  year: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+    ])
+
+    const formattedItems = payments.map((p) => ({
+      id: p.id,
+      rsvpId: p.rsvpId,
+      screenshotUrl: p.screenshotUrl,
+      status: p.status,
+      rejectReason: p.rejectReason,
+      verifiedBy: p.verifiedBy,
+      verifiedAt: p.verifiedAt ? p.verifiedAt.toISOString() : null,
+      createdAt: p.createdAt.toISOString(),
+      rsvp: {
+        id: p.rsvp.id,
+        userId: p.rsvp.userId,
+        status: p.rsvp.status,
+        answers: p.rsvp.answers,
+        user: p.rsvp.user,
+      },
+    }))
+
+    res.json({
+      ok: true,
+      data: {
+        items: formattedItems,
+        page,
+        limit,
+        total,
+      },
+      error: null,
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function patchPayment(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const rawId = req.params.rsvpId ?? req.params.id
+  const rsvpId = Array.isArray(rawId) ? rawId[0] : rawId
+
+  if (!rsvpId) {
+    return next(new ApiError('VALIDATION', 'RSVP ID is required'))
+  }
+
+  const body = req.body as PatchPaymentBody
+
+  try {
+    const payment = await prisma.payment.findUnique({
+      where: { rsvpId },
+      include: {
+        rsvp: {
+          include: {
+            event: {
+              include: { club: true },
+            },
+          },
+        },
+      },
+    })
+
+    if (!payment) {
+      return next(new ApiError('NOT_FOUND', 'Payment record not found'))
+    }
+
+    if (payment.rsvp.event.club.ownerId !== req.user!.id) {
+      return next(new ApiError('FORBIDDEN', 'Only the club owner can verify payments'))
+    }
+
+    const now = new Date()
+    const isVerification = body.status === 'verified'
+
+    // Integrate with Ali's shared transition engine (BR-R5, BR-R10)
+    const transitionService = getRsvpTransitionService()
+    const targetStatus = isVerification ? 'approved' : 'rejected'
+    const transitionResult = await transitionService.transition({
+      rsvpId,
+      toStatus: targetStatus,
+      actorId: req.user!.id,
+      reason: isVerification ? undefined : body.rejectReason,
+    })
+
+    if (!transitionResult.success) {
+      const code = transitionResult.error?.code || 'CONFLICT'
+      const message = transitionResult.error?.message || 'RSVP transition failed'
+      return next(new ApiError(code, message))
+    }
+
+    const updatedPayment = await prisma.payment.update({
+      where: { rsvpId },
+      data: {
+        status: body.status,
+        verifiedBy: req.user!.id,
+        verifiedAt: now,
+        rejectReason: isVerification ? null : body.rejectReason,
+      },
+    })
+
+    res.json({
+      ok: true,
+      data: {
+        id: updatedPayment.id,
+        rsvpId: updatedPayment.rsvpId,
+        status: updatedPayment.status,
+        rejectReason: updatedPayment.rejectReason,
+        verifiedBy: updatedPayment.verifiedBy,
+        verifiedAt: updatedPayment.verifiedAt ? updatedPayment.verifiedAt.toISOString() : null,
+      },
+      error: null,
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+

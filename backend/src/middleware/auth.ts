@@ -1,4 +1,4 @@
-﻿import crypto from 'node:crypto'
+import crypto from 'node:crypto'
 import type { NextFunction, Request, Response } from 'express'
 import { env } from '../config/env.js'
 import { prisma } from '../db/index.js'
@@ -17,28 +17,77 @@ declare global {
   }
 }
 
+const VALID_ROLES = ['student', 'club_admin', 'super_admin'] as const
+
 export function verifyJwtToken(token: string): AuthUser | null {
-  const secret = env.JWT_SECRET || 'managevent-dev-fallback-secret-minimum-32-chars!'
+  const secret = env.JWT_SECRET
+  if (!secret) {
+    // Secret not configured; refuse all authentication safely
+    return null
+  }
+
   const parts = token.split('.')
   if (parts.length !== 3) return null
 
   const [headerB64, payloadB64, signatureB64] = parts
   if (!headerB64 || !payloadB64 || !signatureB64) return null
 
+  // 1. Verify header
+  try {
+    const headerJson = Buffer.from(headerB64, 'base64url').toString('utf8')
+    const header = JSON.parse(headerJson)
+    if (header.alg !== 'HS256' || header.typ !== 'JWT') {
+      return null
+    }
+  } catch {
+    return null
+  }
+
+  // 2. Verify signature safely using timingSafeEqual
   const expectedSig = crypto
     .createHmac('sha256', secret)
     .update(`${headerB64}.${payloadB64}`)
     .digest('base64url')
 
-  if (expectedSig !== signatureB64) return null
+  const expectedBuf = Buffer.from(expectedSig)
+  const receivedBuf = Buffer.from(signatureB64)
 
+  if (expectedBuf.length !== receivedBuf.length) {
+    return null
+  }
+
+  if (!crypto.timingSafeEqual(expectedBuf, receivedBuf)) {
+    return null
+  }
+
+  // 3. Verify payload claims (sub, role, exp)
   try {
     const payloadJson = Buffer.from(payloadB64, 'base64url').toString('utf8')
     const payload = JSON.parse(payloadJson)
-    const id = payload.sub || payload.id
-    const role = payload.role || 'student'
-    if (!id) return null
-    return { id, role }
+
+    const sub = payload.sub
+    if (typeof sub !== 'string' || !sub.trim()) {
+      return null
+    }
+
+    const role = payload.role
+    if (!VALID_ROLES.includes(role)) {
+      return null
+    }
+
+    // Expiry check (7-day token contract: exp must be present and valid)
+    const exp = payload.exp
+    if (typeof exp !== 'number' || !Number.isInteger(exp)) {
+      return null
+    }
+
+    const nowSec = Math.floor(Date.now() / 1000)
+    if (nowSec > exp) {
+      // Token is expired
+      return null
+    }
+
+    return { id: sub, role }
   } catch {
     return null
   }

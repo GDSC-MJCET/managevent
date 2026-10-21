@@ -1,4 +1,4 @@
-﻿import { Router } from 'express'
+import { Router } from 'express'
 import { requireAuth, requireClubOwner } from '../../middleware/auth.js'
 import { validateBody, validateQuery } from '../../middleware/validate.js'
 import {
@@ -8,12 +8,16 @@ import {
   patchRsvp,
   bulkApproveRsvps,
   exportEventRsvps,
+  getEventPayments,
+  patchPayment,
 } from './controller.js'
 import {
   PutRsvpFormBodySchema,
   GetEventRsvpsQuerySchema,
   PatchRsvpBodySchema,
   BulkApproveRsvpsBodySchema,
+  GetEventPaymentsQuerySchema,
+  PatchPaymentBodySchema,
 } from './schema.js'
 
 export const attendeeOpsRouter: Router = Router()
@@ -59,3 +63,20 @@ attendeeOpsRouter.post(
   validateBody(BulkApproveRsvpsBodySchema),
   bulkApproveRsvps,
 )
+
+// AN-03: Payment verification
+attendeeOpsRouter.get(
+  '/events/:id/payments',
+  requireAuth,
+  requireClubOwner,
+  validateQuery(GetEventPaymentsQuerySchema),
+  getEventPayments,
+)
+
+attendeeOpsRouter.patch(
+  '/payments/:rsvpId',
+  requireAuth,
+  validateBody(PatchPaymentBodySchema),
+  patchPayment,
+)
+
