@@ -46,7 +46,7 @@ Everyone carries the same load: eleven REST endpoints, six or seven pages, three
 |---|---|---|---|---|---|
 | Ali | `auth-rsvp` | 11 + 4 guards | 6 | 3 | Auth, guards, the RSVP capacity and waitlist engine |
 | Amar | `quiz-live`, `sockets` | 11 + WebSocket gateway | 6 | 4 | Socket gateway, live quiz engine, live client state |
-| Syed Ayesha | `events` | 11 | 7 | 4 | Event lifecycle state machine, discovery feed, live doubts board |
+| Ayesha | `events` | 11 | 7 | 4 | Event lifecycle state machine, discovery feed, live doubts board |
 | Anas | `attendee-ops` | 11 | 6 | 3 | Approval and payment workflow, event-day check-in, dynamic form builder |
 | Ayub | `clubs-uploads`, `ui` | 11 | 6 | 3 | Club approval workflow, upload service, design system |
 | Adnaan | `recap` | 11 | 6 | 4 | Recap aggregation, bulk gallery, certificate assignment |
