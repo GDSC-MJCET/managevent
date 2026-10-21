@@ -17,6 +17,24 @@ import type {
 import { getRsvpTransitionService } from './services/rsvpTransitionProvider.js'
 import { generateAttendeesCsv } from './services/csvExport.js'
 
+function formatFormField(f: {
+  id: string
+  label: string
+  type: any
+  required: boolean
+  position: number
+  options: unknown
+}) {
+  return {
+    id: f.id,
+    label: f.label,
+    type: f.type,
+    required: f.required,
+    position: f.position,
+    options: Array.isArray(f.options) ? (f.options as string[]) : null,
+  }
+}
+
 // ── AN-01: Custom RSVP Form ──────────────────────────────────────────────────
 
 export async function getRsvpForm(
@@ -61,20 +79,11 @@ export async function getRsvpForm(
       orderBy: { position: 'asc' },
     })
 
-    const formattedFields = fields.map((f) => ({
-      id: f.id,
-      label: f.label,
-      type: f.type,
-      required: f.required,
-      position: f.position,
-      options: Array.isArray(f.options) ? (f.options as string[]) : null,
-    }))
-
     res.json({
       ok: true,
       data: {
         eventId,
-        fields: formattedFields,
+        fields: fields.map(formatFormField),
       },
       error: null,
     })
@@ -98,15 +107,6 @@ export async function putRsvpForm(
   const body = req.body as PutRsvpFormBody
 
   try {
-    const event = await prisma.event.findUnique({
-      where: { id: eventId },
-      select: { id: true },
-    })
-
-    if (!event) {
-      return next(new ApiError('NOT_FOUND', 'Event not found'))
-    }
-
     const createdFields = await prisma.$transaction(async (tx) => {
       await tx.rsvpFormField.deleteMany({
         where: { eventId },
@@ -134,20 +134,11 @@ export async function putRsvpForm(
       })
     })
 
-    const formattedFields = createdFields.map((f) => ({
-      id: f.id,
-      label: f.label,
-      type: f.type,
-      required: f.required,
-      position: f.position,
-      options: Array.isArray(f.options) ? (f.options as string[]) : null,
-    }))
-
     res.json({
       ok: true,
       data: {
         eventId,
-        fields: formattedFields,
+        fields: createdFields.map(formatFormField),
       },
       error: null,
     })
