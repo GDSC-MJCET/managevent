@@ -46,10 +46,10 @@ Everyone carries the same load: eleven REST endpoints, six or seven pages, three
 |---|---|---|---|---|---|
 | Ali | `auth-rsvp` | 11 + 4 guards | 6 | 3 | Auth, guards, the RSVP capacity and waitlist engine |
 | Amar | `quiz-live`, `sockets` | 11 + WebSocket gateway | 6 | 4 | Socket gateway, live quiz engine, live client state |
-|Syeda Ayesha | `events` | 11 | 7 | 4 | Event lifecycle state machine, discovery feed, live doubts board |
+|syedaa Ayesha | `events` | 11 | 7 | 4 | Event lifecycle state machine, discovery feed, live doubts board |
 | Anas | `attendee-ops` | 11 | 6 | 3 | Approval and payment workflow, event-day check-in, dynamic form builder |
 | Ayub | `clubs-uploads`, `ui` | 11 | 6 | 3 | Club approval workflow, upload service, design system |
-| Adnaan | `recap` | 11 | 6 | 4 | Recap aggregation, bulk gallery, certificate assignment |
+| adnan | `recap` | 11 | 6 | 4 | Recap aggregation, bulk gallery, certificate assignment |
 
 ### 2.1 Slice summaries
 
@@ -63,7 +63,7 @@ Everyone carries the same load: eleven REST endpoints, six or seven pages, three
 - Pages: `/events/:id/live` (tabs: Quiz, Ask a doubt, Meet the speaker), `/club/events/:id/live` (control room), `/club/events/:id/quiz` (builder), quiz results screen, `LeaderboardPanel`, `useSocket` hook and room state
 - Also owns: the socket gateway and `emitToRoom(eventId, name, payload)`
 
-**Syeda Ayesha: Events and live doubts**
+**syedaa Ayesha: Events and live doubts**
 - Tables: `events`, `event_settings`, `doubts`, `doubt_votes`
 - Pages: `/` (Discover), `/events/:id`, `/club/events`, `/club/events/new`, `/club/events/:id/edit`, Doubts board (audience tab and club moderation panel), `EventCard`
 
@@ -76,7 +76,7 @@ Everyone carries the same load: eleven REST endpoints, six or seven pages, three
 - Pages: `/club/register`, `/club/:id`, `/club/dashboard` (shell, sidebar, nav), `/admin/clubs`, `/club/events/:id/speakers` plus `SpeakerSection`, design system
 - Also owns: `POST /api/uploads`, used by everyone
 
-**Adnaan: Recap, gallery and certificates**
+**adnan: Recap, gallery and certificates**
 - Tables: `gallery_items`, `certificates`, `tech_links`, `recap_settings`
 - Pages: `/events/:id/recap`, `/club/events/:id/recap/edit`, Gallery, Certificates (club assign view and `/me/certificates`), Technical links section, publish gating
 
@@ -89,7 +89,7 @@ Everyone carries the same load: eleven REST endpoints, six or seven pages, three
 | events, event_settings, doubts, doubt_votes | Ayesha | club_id, capacity, approval_mode (auto_until_full or manual), is_paid, price, qr_url, status (draft, open, live, ended); upvote count, pinned |
 | payments, checkins, rsvp_form_fields | Anas | rsvp_id, screenshot_url, verified_by, reject reason; checked_in_at; question label, type, required, order |
 | clubs, speakers, uploads | Ayub | club status (pending, approved, rejected), owner_id; name, bio, photo, topic; file_url, mime, size |
-| gallery_items, certificates, tech_links, recap_settings | Adnaan | event_id, file_url, caption, position; user_id, file_url; link title and url; published flag |
+| gallery_items, certificates, tech_links, recap_settings | adnan | event_id, file_url, caption, position; user_id, file_url; link title and url; published flag |
 
 ### 2.3 Repo layout
 
@@ -111,7 +111,7 @@ managevent/
         events/            Ayesha
         attendee-ops/      Anas
         clubs-uploads/     Ayub
-        recap/             Adnaan
+        recap/             adnan
       sockets/             Amar
   client/src/
     ui/                    Ayub: design system
@@ -123,7 +123,7 @@ Env: `DATABASE_URL`, `JWT_SECRET`, `CLIENT_ORIGIN`, `CLOUDINARY_CLOUD_NAME`, `CL
 
 ### 2.4 Peer review ring
 
-Ali reviews Amar, Amar reviews Ayesha, Ayesha reviews Anas, Anas reviews Ayub, Ayub reviews Adnaan, Adnaan reviews Ali.
+Ali reviews Amar, Amar reviews Ayesha, Ayesha reviews Anas, Anas reviews Ayub, Ayub reviews adnan, adnan reviews Ali.
 
 ---
 
@@ -214,7 +214,7 @@ Ali writes the first migration with all 21 tables below as stubs. After that eac
 - **speakers**: id, event_id, name, bio, photo_url, topic, links (jsonb), position
 - **uploads**: id, uploader_id, kind, mime, size, file_url, public_id, access `public|private`, created_at
 
-**Adnaan**
+**adnan**
 - **gallery_items**: id, event_id, file_url, caption, position
 - **certificates**: id, event_id, user_id, file_url, issued_at. Unique (event_id, user_id).
 - **tech_links**: id, event_id, title, description, github_url?, url?, position
@@ -294,12 +294,12 @@ Format: `ID | task | depends on | acceptance`. Check the box when acceptance pas
 - [ ] **AM-02** Quiz CRUD: `POST/GET /api/events/:id/quizzes`, `PUT/DELETE /api/quizzes/:qid` (whole quiz with questions). | AY-01 | `correct_index` hidden from non-owners in responses.
 - [ ] **AM-03** Question flow: `POST /api/quizzes/:qid/questions/:id/open`, `POST /api/quizzes/:qid/questions/:id/close`, `POST /api/questions/:id/answer`. Close on timer expiry or manually. Emits `quiz:open`, `quiz:close`, `quiz:results`. | AM-01, AM-02 | BR-L3, L4, L5, L7; late answer rejected; double answer rejected.
 - [ ] **AM-04** `GET /api/quizzes/:qid/results` (per-user scores), `GET /api/quizzes/:qid/state` (reconnect snapshot). | AM-03 | Snapshot restores current question and remaining time.
-- [ ] **AM-05** Leaderboard: `GET/POST /api/events/:id/leaderboard` (ranked list, manual points). | AM-04 | BR-P3 with tie test. Mock JSON published early for Adnaan.
+- [ ] **AM-05** Leaderboard: `GET/POST /api/events/:id/leaderboard` (ranked list, manual points). | AM-04 | BR-P3 with tie test. Mock JSON published early for adnan.
 - [ ] **AM-06** Client: `useSocket` hook, reconnect, room state store. | AM-01 | Reconnect restores current question state via `/state`.
 - [ ] **AM-07** Pages `/club/events/:id/quiz` (builder: questions, options, correct answer, points, timer), `/club/events/:id/live` (control room: start and close each question, see who answered). | AM-02, AM-03, AB-02 | Club runs a full quiz end to end.
 - [ ] **AM-08** Pages `/events/:id/live` (tabs: Quiz, Ask a doubt, Meet the speaker), quiz results screen, `LeaderboardPanel` (reusable, also used in the recap). | AM-04, AM-05, AM-06 | Approved attendees only; panel renders ranked list from the real or mock endpoint.
 
-### Syed Ayesha: events and live doubts
+### syeda Ayesha: events and live doubts
 
 - [ ] **AY-01** Events API: `POST /api/events` (with settings), `GET /api/events` (feed: `q`, `club`, `from`, `to`, `paid`, pagination), `GET /api/events/:id` (with seats left), `PATCH /api/events/:id` (details, capacity, approval mode, price, QR url), `DELETE /api/events/:id`. | AL-04, AB-03 | BR-E1, E3, E4, E5. Only approved clubs can host.
 - [ ] **AY-02** `PATCH /api/events/:id/status`, `GET /api/clubs/:id/events`. | AY-01 | BR-E1, E2; backward move returns `CONFLICT`; paid event without QR cannot open.
@@ -330,7 +330,7 @@ Format: `ID | task | depends on | acceptance`. Check the box when acceptance pas
 - [ ] **AB-07** Pages `/club/register`, `/club/:id`, `/club/dashboard` (shell, sidebar, nav), `/admin/clubs`. | AB-02, AB-03, AB-04 | Registration appears in admin queue; approval makes it public.
 - [ ] **AB-08** Page `/club/events/:id/speakers` and `SpeakerSection` component used in the live room and event detail. | AB-06 | Add, edit and remove speakers; section renders in both places.
 
-### Adnaan: recap, gallery and certificates
+### adnan: recap, gallery and certificates
 
 - [ ] **AD-01** Gallery: `POST /api/events/:id/gallery` (bulk upload), `PATCH /api/events/:id/gallery` (captions and reorder), `DELETE /api/gallery/:id`. | AB-05, AY-02 | BR-P1.
 - [ ] **AD-02** Certificates: `POST /api/events/:id/certificates` (upload and assign), `GET /api/me/certificates`, `GET /api/events/:id/certificates` (club view). | AB-05, AN-04 | BR-P4. Assign only to approved or checked-in users.
@@ -347,12 +347,12 @@ Format: `ID | task | depends on | acceptance`. Check the box when acceptance pas
 | Dependency | Who needs it | Unblock rule |
 |---|---|---|
 | Migration, guards, JWT | Everyone | Ali ships the migration with all 21 tables as stubs and the guards with a fake-user mode by day 2. Ayub and Amar ship their own foundations in parallel. |
-| `POST /api/uploads` | Ayesha (QR), Anas (screenshots), Adnaan (gallery), Ayub (logos) | Ayub deploys a stub that returns a fake URL on day 1. The real implementation lands by day 4, with Ali reviewing. |
+| `POST /api/uploads` | Ayesha (QR), Anas (screenshots), adnan (gallery), Ayub (logos) | Ayub deploys a stub that returns a fake URL on day 1. The real implementation lands by day 4, with Ali reviewing. |
 | Socket gateway | Ayesha (doubts) | Amar publishes `emitToRoom(eventId, name, payload)` as a no-op on day 2. |
 | RSVP status transitions | Anas | Ali exports `rsvpService.transition()` as an interface first. |
 | RSVP form schema | Ali's RSVP POST | Fix the JSON shape of `rsvp_form_fields` on day 1. Until then Ali uses a default form. |
 | Room access | Amar | He calls `requireApprovedAttendee` from Ali, which returns true in mock mode. |
-| Quiz scores | Adnaan | He reads `GET /api/events/:id/leaderboard` from `shared/mocks` until Amar's real one lands. |
+| Quiz scores | adnan | He reads `GET /api/events/:id/leaderboard` from `shared/mocks` until Amar's real one lands. |
 
 If uploads slips, whoever has the lightest week picks up `/api/uploads` for the first week (about a day of work). Nothing else in the plan changes.
 
@@ -366,7 +366,7 @@ If your dependency is not merged, build against the mock and mark the PR `blocke
 |---|---|---|
 | Days 1 to 3 | Repo, migration, auth, guards, upload stub, socket stub, design tokens, mock JSON for every endpoint (AL-01 to AL-05, AM-01, AB-01, AB-02) | Ali, Amar and Ayub ship foundations. Others build UI against mock JSON in `shared/mocks`. |
 | Days 4 to 8 | Club registration, host-event form, discover feed, RSVP flow, real upload service, RSVP form builder (AB-03 to AB-07, AY-01 to AY-06, AL-06 to AL-10, AN-01, AB-05) | Ayesha needs Ayub's club approval. Anas needs Ali's transition service and Ayesha's event detail. |
-| Days 9 to 13 | Attendee approval queue, payment verification, check-in, live quiz with sockets, doubts board, recap page and gallery (AN-02 to AN-07, AM-02 to AM-08, AY-07, AD-01 to AD-07) | Adnaan reads Amar's leaderboard and Ayub's speakers. Amar reads Ali's approved status for room access. |
+| Days 9 to 13 | Attendee approval queue, payment verification, check-in, live quiz with sockets, doubts board, recap page and gallery (AN-02 to AN-07, AM-02 to AM-08, AY-07, AD-01 to AD-07) | adnan reads Amar's leaderboard and Ayub's speakers. Amar reads Ali's approved status for room access. |
 | Days 14 to 16 | Integration, bug bash on one real club event, phone testing | Everyone. Pick one real club to test with. |
 
 Real club logos and MJCET photos are needed from the club heads before launch.
