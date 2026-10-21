@@ -1,4 +1,5 @@
-﻿import type { Request, Response, NextFunction } from 'express'
+import crypto from 'node:crypto'
+import type { Request, Response, NextFunction } from 'express'
 import { prisma } from '../../db/index.js'
 import { ApiError } from '../../lib/errors.js'
 import { parseOptionalAuth } from '../../middleware/auth.js'
@@ -103,6 +104,7 @@ export async function putRsvpForm(
 
       await tx.rsvpFormField.createMany({
         data: body.fields.map((f: RsvpFormFieldInput) => ({
+          id: crypto.randomUUID(),
           eventId,
           label: f.label,
           type: f.type,
