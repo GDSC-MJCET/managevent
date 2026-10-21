@@ -46,7 +46,7 @@ Everyone carries the same load: eleven REST endpoints, six or seven pages, three
 |---|---|---|---|---|---|
 | Ali | `auth-rsvp` | 11 + 4 guards | 6 | 3 | Auth, guards, the RSVP capacity and waitlist engine |
 | Amar | `quiz-live`, `sockets` | 11 + WebSocket gateway | 6 | 4 | Socket gateway, live quiz engine, live client state |
-|syeda Ayesha | `events` | 11 | 7 | 4 | Event lifecycle state machine, discovery feed, live doubts board |
+|Ayesha | `events` | 11 | 7 | 4 | Event lifecycle state machine, discovery feed, live doubts board |
 | Anas | `attendee-ops` | 11 | 6 | 3 | Approval and payment workflow, event-day check-in, dynamic form builder |
 | Ayub | `clubs-uploads`, `ui` | 11 | 6 | 3 | Club approval workflow, upload service, design system |
 | adnan | `recap` | 11 | 6 | 4 | Recap aggregation, bulk gallery, certificate assignment |
@@ -63,7 +63,7 @@ Everyone carries the same load: eleven REST endpoints, six or seven pages, three
 - Pages: `/events/:id/live` (tabs: Quiz, Ask a doubt, Meet the speaker), `/club/events/:id/live` (control room), `/club/events/:id/quiz` (builder), quiz results screen, `LeaderboardPanel`, `useSocket` hook and room state
 - Also owns: the socket gateway and `emitToRoom(eventId, name, payload)`
 
-**syeda Ayesha: Events and live doubts**
+**Ayesha: Events and live doubts**
 - Tables: `events`, `event_settings`, `doubts`, `doubt_votes`
 - Pages: `/` (Discover), `/events/:id`, `/club/events`, `/club/events/new`, `/club/events/:id/edit`, Doubts board (audience tab and club moderation panel), `EventCard`
 
@@ -299,7 +299,7 @@ Format: `ID | task | depends on | acceptance`. Check the box when acceptance pas
 - [ ] **AM-07** Pages `/club/events/:id/quiz` (builder: questions, options, correct answer, points, timer), `/club/events/:id/live` (control room: start and close each question, see who answered). | AM-02, AM-03, AB-02 | Club runs a full quiz end to end.
 - [ ] **AM-08** Pages `/events/:id/live` (tabs: Quiz, Ask a doubt, Meet the speaker), quiz results screen, `LeaderboardPanel` (reusable, also used in the recap). | AM-04, AM-05, AM-06 | Approved attendees only; panel renders ranked list from the real or mock endpoint.
 
-### syeda Ayesha: events and live doubts
+### Ayesha: events and live doubts
 
 - [ ] **AY-01** Events API: `POST /api/events` (with settings), `GET /api/events` (feed: `q`, `club`, `from`, `to`, `paid`, pagination), `GET /api/events/:id` (with seats left), `PATCH /api/events/:id` (details, capacity, approval mode, price, QR url), `DELETE /api/events/:id`. | AL-04, AB-03 | BR-E1, E3, E4, E5. Only approved clubs can host.
 - [ ] **AY-02** `PATCH /api/events/:id/status`, `GET /api/clubs/:id/events`. | AY-01 | BR-E1, E2; backward move returns `CONFLICT`; paid event without QR cannot open.
