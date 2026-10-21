@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import request from 'supertest'
 import { app } from '../../src/app.js'
 import { prisma } from '../../src/db/index.js'
@@ -229,7 +229,7 @@ describe('AN-03: Payment Verification API', () => {
       expect(res.body.error.code).toBe('VALIDATION')
     })
 
-    it('verifies payment, triggers RSVP transition to approved, and records verifier (BR-R5, BR-R10)', async () => {
+    it('verifies payment in auto approval mode when capacity remains (BR-R5, BR-R10) -> approved', async () => {
       vi.mocked(prisma.payment.findUnique).mockResolvedValue({
         id: paymentId,
         rsvpId,
@@ -240,6 +240,16 @@ describe('AN-03: Payment Verification API', () => {
           },
         },
       } as any)
+
+      vi.mocked(mockTransitionService.transition).mockResolvedValue({
+        success: true,
+        rsvp: {
+          id: rsvpId,
+          eventId,
+          userId: 'u100',
+          status: 'approved',
+        },
+      })
 
       const verifiedAt = new Date('2026-10-22T00:05:00.000Z')
       vi.mocked(prisma.payment.update).mockResolvedValue({
@@ -263,17 +273,18 @@ describe('AN-03: Payment Verification API', () => {
       expect(res.body.ok).toBe(true)
       expect(res.body.data.status).toBe('verified')
       expect(res.body.data.verifiedBy).toBe(ownerId)
+      expect(res.body.data.rsvpStatus).toBe('approved')
 
-      // Verified call to Ali's transition engine
+      // Verified call to Ali's transition engine with payment_verified
       expect(mockTransitionService.transition).toHaveBeenCalledWith({
         rsvpId,
-        toStatus: 'approved',
+        toStatus: 'payment_verified',
         actorId: ownerId,
         reason: undefined,
       })
     })
 
-    it('rejects payment with reason and triggers RSVP transition to rejected (BR-R6, BR-R10)', async () => {
+    it('verifies payment in auto approval mode when capacity is full (BR-R5, BR-R10) -> waitlist', async () => {
       vi.mocked(prisma.payment.findUnique).mockResolvedValue({
         id: paymentId,
         rsvpId,
@@ -284,6 +295,125 @@ describe('AN-03: Payment Verification API', () => {
           },
         },
       } as any)
+
+      // Ali's engine determines capacity is full and places RSVP on waitlist
+      vi.mocked(mockTransitionService.transition).mockResolvedValue({
+        success: true,
+        rsvp: {
+          id: rsvpId,
+          eventId,
+          userId: 'u100',
+          status: 'waitlist',
+        },
+      })
+
+      const verifiedAt = new Date('2026-10-22T00:05:00.000Z')
+      vi.mocked(prisma.payment.update).mockResolvedValue({
+        id: paymentId,
+        rsvpId,
+        screenshotUrl: 'https://res.cloudinary.com/demo/image/upload/sample.jpg',
+        status: 'verified',
+        rejectReason: null,
+        verifiedBy: ownerId,
+        verifiedAt,
+        createdAt: new Date('2026-10-22T00:00:00.000Z'),
+      } as any)
+
+      const token = createTestJwt(ownerId, 'club_admin')
+      const res = await request(app)
+        .patch(`/api/payments/${rsvpId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ status: 'verified' })
+
+      expect(res.status).toBe(200)
+      expect(res.body.ok).toBe(true)
+      expect(res.body.data.status).toBe('verified')
+      expect(res.body.data.rsvpStatus).toBe('waitlist')
+
+      expect(mockTransitionService.transition).toHaveBeenCalledWith({
+        rsvpId,
+        toStatus: 'payment_verified',
+        actorId: ownerId,
+        reason: undefined,
+      })
+    })
+
+    it('verifies payment in manual approval mode (BR-R5, BR-R10) -> retains pending RSVP', async () => {
+      vi.mocked(prisma.payment.findUnique).mockResolvedValue({
+        id: paymentId,
+        rsvpId,
+        status: 'pending',
+        rsvp: {
+          event: {
+            club: { ownerId },
+          },
+        },
+      } as any)
+
+      // Ali's engine evaluates manual mode: leaves RSVP pending until club explicitly approves
+      vi.mocked(mockTransitionService.transition).mockResolvedValue({
+        success: true,
+        rsvp: {
+          id: rsvpId,
+          eventId,
+          userId: 'u100',
+          status: 'pending',
+        },
+      })
+
+      const verifiedAt = new Date('2026-10-22T00:05:00.000Z')
+      vi.mocked(prisma.payment.update).mockResolvedValue({
+        id: paymentId,
+        rsvpId,
+        screenshotUrl: 'https://res.cloudinary.com/demo/image/upload/sample.jpg',
+        status: 'verified',
+        rejectReason: null,
+        verifiedBy: ownerId,
+        verifiedAt,
+        createdAt: new Date('2026-10-22T00:00:00.000Z'),
+      } as any)
+
+      const token = createTestJwt(ownerId, 'club_admin')
+      const res = await request(app)
+        .patch(`/api/payments/${rsvpId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ status: 'verified' })
+
+      expect(res.status).toBe(200)
+      expect(res.body.ok).toBe(true)
+      expect(res.body.data.status).toBe('verified')
+      expect(res.body.data.rsvpStatus).toBe('pending')
+
+      expect(mockTransitionService.transition).toHaveBeenCalledWith({
+        rsvpId,
+        toStatus: 'payment_verified',
+        actorId: ownerId,
+        reason: undefined,
+      })
+    })
+
+    it('rejects payment with reason, keeps RSVP pending so student can resubmit screenshot (BR-R6, BR-R10)', async () => {
+      vi.mocked(prisma.payment.findUnique).mockResolvedValue({
+        id: paymentId,
+        rsvpId,
+        status: 'pending',
+        rsvp: {
+          event: {
+            club: { ownerId },
+          },
+        },
+      } as any)
+
+      // Under BR-R6, payment rejection leaves RSVP in pending state rather than terminating it
+      vi.mocked(mockTransitionService.transition).mockResolvedValue({
+        success: true,
+        rsvp: {
+          id: rsvpId,
+          eventId,
+          userId: 'u100',
+          status: 'pending',
+        },
+      })
 
       const verifiedAt = new Date('2026-10-22T00:05:00.000Z')
       vi.mocked(prisma.payment.update).mockResolvedValue({
@@ -307,14 +437,109 @@ describe('AN-03: Payment Verification API', () => {
       expect(res.body.ok).toBe(true)
       expect(res.body.data.status).toBe('rejected')
       expect(res.body.data.rejectReason).toBe('UTR number already used')
+      expect(res.body.data.rsvpStatus).toBe('pending')
 
-      // Verified call to Ali's transition engine with reason
+      // Verified call to Ali's transition engine with payment_rejected and reason
       expect(mockTransitionService.transition).toHaveBeenCalledWith({
         rsvpId,
-        toStatus: 'rejected',
+        toStatus: 'payment_rejected',
         actorId: ownerId,
         reason: 'UTR number already used',
       })
+    })
+
+    it('executes compensating rollback to pending when RSVP transition succeeds but payment update fails (Consistency)', async () => {
+      vi.mocked(prisma.payment.findUnique).mockResolvedValue({
+        id: paymentId,
+        rsvpId,
+        status: 'pending',
+        rsvp: {
+          event: {
+            club: { ownerId },
+          },
+        },
+      } as any)
+
+      vi.mocked(mockTransitionService.transition).mockResolvedValue({
+        success: true,
+        rsvp: {
+          id: rsvpId,
+          eventId,
+          userId: 'u100',
+          status: 'approved',
+        },
+      })
+
+      // Simulate database failure during payment update
+      vi.mocked(prisma.payment.update).mockRejectedValue(new Error('DB Connection Timeout'))
+
+      const token = createTestJwt(ownerId, 'club_admin')
+      const res = await request(app)
+        .patch(`/api/payments/${rsvpId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ status: 'verified' })
+
+      expect(res.status).toBe(500)
+
+      // Verified compensating rollback call was made to revert RSVP to pending
+      expect(mockTransitionService.transition).toHaveBeenCalledTimes(2)
+      expect(mockTransitionService.transition).toHaveBeenNthCalledWith(1, {
+        rsvpId,
+        toStatus: 'payment_verified',
+        actorId: ownerId,
+        reason: undefined,
+      })
+      expect(mockTransitionService.transition).toHaveBeenNthCalledWith(2, {
+        rsvpId,
+        toStatus: 'pending',
+        actorId: ownerId,
+        reason: 'Compensating rollback: payment record update failed after RSVP transition',
+      })
+    })
+
+    it('confirms student resubmission flow returns payment status to pending and preserves RSVP eligibility (BR-R6)', async () => {
+      // Step 1: Payment was previously rejected and student resubmits a new screenshot
+      // Resubmission updates the payment record to pending with the new screenshot and clears rejectReason
+      const resubmittedPayment = {
+        id: paymentId,
+        rsvpId,
+        screenshotUrl: 'https://res.cloudinary.com/demo/image/upload/new-receipt.jpg',
+        status: 'pending',
+        rejectReason: null,
+        verifiedBy: null,
+        verifiedAt: null,
+        createdAt: new Date('2026-10-22T00:00:00.000Z'),
+        rsvp: {
+          id: rsvpId,
+          userId: 'u100',
+          status: 'pending',
+          answers: null,
+          user: {
+            name: 'Jane Doe',
+            email: 'jane@mjcet.ac.in',
+            rollNumber: '1604-22-733-002',
+            branch: 'CSE',
+            year: 3,
+          },
+        },
+      }
+
+      vi.mocked(prisma.payment.count).mockResolvedValue(1)
+      vi.mocked(prisma.payment.findMany).mockResolvedValue([resubmittedPayment] as any)
+
+      const token = createTestJwt(ownerId, 'club_admin')
+      // Step 2: The resubmitted payment now re-appears in the club owner's pending verification queue
+      const res = await request(app)
+        .get(`/api/events/${eventId}/payments?status=pending`)
+        .set('Authorization', `Bearer ${token}`)
+
+      expect(res.status).toBe(200)
+      expect(res.body.ok).toBe(true)
+      expect(res.body.data.total).toBe(1)
+      expect(res.body.data.items[0].status).toBe('pending')
+      expect(res.body.data.items[0].screenshotUrl).toBe('https://res.cloudinary.com/demo/image/upload/new-receipt.jpg')
+      expect(res.body.data.items[0].rejectReason).toBeNull()
+      expect(res.body.data.items[0].rsvp.status).toBe('pending')
     })
   })
 })

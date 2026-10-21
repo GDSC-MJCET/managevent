@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import type { Request, Response } from 'express'
 import {
   verifyJwtToken,
@@ -110,6 +110,24 @@ describe('Authentication Hardening & Security Review (Phase A)', () => {
       })
       const req = {
         headers: { authorization: `Bearer ${expiredToken}` },
+      } as unknown as Request
+      const res = {} as Response
+      const next = vi.fn()
+
+      requireAuth(req, res, next)
+
+      expect(next).toHaveBeenCalledWith(expect.any(ApiError))
+      const err = next.mock.calls[0][0] as ApiError
+      expect(err.code).toBe('UNAUTHENTICATED')
+    })
+
+    it('throws ApiError UNAUTHENTICATED when token is exactly at the exp second boundary (nowSec === exp)', () => {
+      const nowSec = Math.floor(Date.now() / 1000)
+      const boundaryToken = createTestJwt(userId, 'student', {
+        exp: nowSec,
+      })
+      const req = {
+        headers: { authorization: `Bearer ${boundaryToken}` },
       } as unknown as Request
       const res = {} as Response
       const next = vi.fn()

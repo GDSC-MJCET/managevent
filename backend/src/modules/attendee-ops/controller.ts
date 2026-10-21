@@ -531,9 +531,11 @@ export async function patchPayment(
     const now = new Date()
     const isVerification = body.status === 'verified'
 
-    // Integrate with Ali's shared transition engine (BR-R5, BR-R10)
+    // Integrate with Ali's shared transition engine (BR-R5, BR-R6, BR-R10)
+    // On verification: Ali's engine applies BR-R5 (auto -> approved/waitlist, manual -> pending).
+    // On rejection: Ali's engine keeps RSVP pending for screenshot resubmission (BR-R6).
     const transitionService = getRsvpTransitionService()
-    const targetStatus = isVerification ? 'approved' : 'rejected'
+    const targetStatus = isVerification ? 'payment_verified' : 'payment_rejected'
     const transitionResult = await transitionService.transition({
       rsvpId,
       toStatus: targetStatus,
@@ -547,28 +549,44 @@ export async function patchPayment(
       return next(new ApiError(code, message))
     }
 
-    const updatedPayment = await prisma.payment.update({
-      where: { rsvpId },
-      data: {
-        status: body.status,
-        verifiedBy: req.user!.id,
-        verifiedAt: now,
-        rejectReason: isVerification ? null : body.rejectReason,
-      },
-    })
+    try {
+      const updatedPayment = await prisma.payment.update({
+        where: { rsvpId },
+        data: {
+          status: body.status,
+          verifiedBy: req.user!.id,
+          verifiedAt: now,
+          rejectReason: isVerification ? null : body.rejectReason,
+        },
+      })
 
-    res.json({
-      ok: true,
-      data: {
-        id: updatedPayment.id,
-        rsvpId: updatedPayment.rsvpId,
-        status: updatedPayment.status,
-        rejectReason: updatedPayment.rejectReason,
-        verifiedBy: updatedPayment.verifiedBy,
-        verifiedAt: updatedPayment.verifiedAt ? updatedPayment.verifiedAt.toISOString() : null,
-      },
-      error: null,
-    })
+      res.json({
+        ok: true,
+        data: {
+          id: updatedPayment.id,
+          rsvpId: updatedPayment.rsvpId,
+          status: updatedPayment.status,
+          rejectReason: updatedPayment.rejectReason,
+          verifiedBy: updatedPayment.verifiedBy,
+          verifiedAt: updatedPayment.verifiedAt ? updatedPayment.verifiedAt.toISOString() : null,
+          rsvpStatus: transitionResult.rsvp?.status,
+        },
+        error: null,
+      })
+    } catch (dbErr) {
+      // Consistency handling: Attempt compensating rollback to 'pending' if payment update fails
+      try {
+        await transitionService.transition({
+          rsvpId,
+          toStatus: 'pending',
+          actorId: req.user!.id,
+          reason: 'Compensating rollback: payment record update failed after RSVP transition',
+        })
+      } catch (compensationErr) {
+        console.error('CRITICAL: Compensation rollback failed for rsvpId:', rsvpId, compensationErr)
+      }
+      return next(dbErr)
+    }
   } catch (err) {
     next(err)
   }

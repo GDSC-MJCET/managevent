@@ -82,8 +82,8 @@ export function verifyJwtToken(token: string): AuthUser | null {
     }
 
     const nowSec = Math.floor(Date.now() / 1000)
-    if (nowSec > exp) {
-      // Token is expired
+    if (nowSec >= exp) {
+      // Token is expired (reject when nowSec >= exp)
       return null
     }
 
