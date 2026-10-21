@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from 'express'
 import { prisma } from '../../db/index.js'
 import { ApiError } from '../../lib/errors.js'
 import { parseOptionalAuth } from '../../middleware/auth.js'
+import { getValidatedQuery } from '../../middleware/validate.js'
 import type {
   PutRsvpFormBody,
   RsvpFormFieldInput,
@@ -16,6 +17,11 @@ import type {
 } from './schema.js'
 import { getRsvpTransitionService } from './services/rsvpTransitionProvider.js'
 import { generateAttendeesCsv } from './services/csvExport.js'
+
+function getSingleParam(param: string | string[] | undefined): string | undefined {
+  if (!param) return undefined
+  return Array.isArray(param) ? param[0] : param
+}
 
 function formatFormField(f: {
   id: string
@@ -42,8 +48,7 @@ export async function getRsvpForm(
   res: Response,
   next: NextFunction,
 ): Promise<void> {
-  const rawId = req.params.id ?? req.params.eventId
-  const eventId = Array.isArray(rawId) ? rawId[0] : rawId
+  const eventId = getSingleParam(req.params.id ?? req.params.eventId)
 
   if (!eventId) {
     return next(new ApiError('VALIDATION', 'Event ID is required'))
@@ -97,8 +102,7 @@ export async function putRsvpForm(
   res: Response,
   next: NextFunction,
 ): Promise<void> {
-  const rawId = req.params.id ?? req.params.eventId
-  const eventId = Array.isArray(rawId) ? rawId[0] : rawId
+  const eventId = getSingleParam(req.params.id ?? req.params.eventId)
 
   if (!eventId) {
     return next(new ApiError('VALIDATION', 'Event ID is required'))
@@ -154,17 +158,16 @@ export async function getEventRsvps(
   res: Response,
   next: NextFunction,
 ): Promise<void> {
-  const rawId = req.params.id ?? req.params.eventId
-  const eventId = Array.isArray(rawId) ? rawId[0] : rawId
+  const eventId = getSingleParam(req.params.id ?? req.params.eventId)
 
   if (!eventId) {
     return next(new ApiError('VALIDATION', 'Event ID is required'))
   }
 
-  const query = req.query as unknown as GetEventRsvpsQuery
-  const page = query.page ?? 1
-  const limit = query.limit ?? 20
-  const status = query.status as RsvpStatus | undefined
+  const query = getValidatedQuery<GetEventRsvpsQuery>(res)
+  const page = query.page
+  const limit = query.limit
+  const status = query.status
 
   try {
     const where = {
@@ -223,8 +226,7 @@ export async function patchRsvp(
   res: Response,
   next: NextFunction,
 ): Promise<void> {
-  const rawId = req.params.id
-  const rsvpId = Array.isArray(rawId) ? rawId[0] : rawId
+  const rsvpId = getSingleParam(req.params.id)
 
   if (!rsvpId) {
     return next(new ApiError('VALIDATION', 'RSVP ID is required'))
@@ -283,15 +285,14 @@ export async function bulkApproveRsvps(
   res: Response,
   next: NextFunction,
 ): Promise<void> {
-  const rawId = req.params.id ?? req.params.eventId
-  const eventId = Array.isArray(rawId) ? rawId[0] : rawId
+  const eventId = getSingleParam(req.params.id ?? req.params.eventId)
 
   if (!eventId) {
     return next(new ApiError('VALIDATION', 'Event ID is required'))
   }
 
   const body = req.body as BulkApproveRsvpsBody
-  const uniqueIds = Array.from(new Set(body.rsvpIds))
+  const uniqueIds = [...new Set(body.rsvpIds)]
 
   try {
     const existingRsvps = await prisma.rsvp.findMany({
@@ -363,15 +364,14 @@ export async function exportEventRsvps(
   res: Response,
   next: NextFunction,
 ): Promise<void> {
-  const rawId = req.params.id ?? req.params.eventId
-  const eventId = Array.isArray(rawId) ? rawId[0] : rawId
+  const eventId = getSingleParam(req.params.id ?? req.params.eventId)
 
   if (!eventId) {
     return next(new ApiError('VALIDATION', 'Event ID is required'))
   }
 
-  const query = req.query as unknown as GetEventRsvpsQuery
-  const status = query.status as RsvpStatus | undefined
+  const query = getValidatedQuery<GetEventRsvpsQuery>(res)
+  const status = query.status
 
   try {
     const rsvps = await prisma.rsvp.findMany({
@@ -410,17 +410,16 @@ export async function getEventPayments(
   res: Response,
   next: NextFunction,
 ): Promise<void> {
-  const rawId = req.params.id ?? req.params.eventId
-  const eventId = Array.isArray(rawId) ? rawId[0] : rawId
+  const eventId = getSingleParam(req.params.id ?? req.params.eventId)
 
   if (!eventId) {
     return next(new ApiError('VALIDATION', 'Event ID is required'))
   }
 
-  const query = req.query as unknown as GetEventPaymentsQuery
-  const page = query.page ?? 1
-  const limit = query.limit ?? 20
-  const status = query.status as PaymentStatus | undefined
+  const query = getValidatedQuery<GetEventPaymentsQuery>(res)
+  const page = query.page
+  const limit = query.limit
+  const status = query.status
 
   try {
     const where = {
@@ -497,8 +496,7 @@ export async function patchPayment(
   res: Response,
   next: NextFunction,
 ): Promise<void> {
-  const rawId = req.params.rsvpId ?? req.params.id
-  const rsvpId = Array.isArray(rawId) ? rawId[0] : rawId
+  const rsvpId = getSingleParam(req.params.rsvpId ?? req.params.id)
 
   if (!rsvpId) {
     return next(new ApiError('VALIDATION', 'RSVP ID is required'))
@@ -568,7 +566,7 @@ export async function patchPayment(
           status: updatedPayment.status,
           rejectReason: updatedPayment.rejectReason,
           verifiedBy: updatedPayment.verifiedBy,
-          verifiedAt: updatedPayment.verifiedAt ? updatedPayment.verifiedAt.toISOString() : null,
+          verifiedAt: updatedPayment.verifiedAt?.toISOString() ?? null,
           rsvpStatus: transitionResult.rsvp?.status,
         },
         error: null,

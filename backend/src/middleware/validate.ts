@@ -16,8 +16,16 @@ export function validateBody<T>(schema: ZodSchema<T>) {
   }
 }
 
+declare global {
+  namespace Express {
+    interface Locals {
+      validatedQuery?: unknown
+    }
+  }
+}
+
 export function validateQuery<T extends Record<string, any>>(schema: ZodSchema<T>) {
-  return (req: Request, _res: Response, next: NextFunction): void => {
+  return (req: Request, res: Response, next: NextFunction): void => {
     const result = schema.safeParse(req.query)
     if (!result.success) {
       const issue = result.error.issues[0]
@@ -25,11 +33,12 @@ export function validateQuery<T extends Record<string, any>>(schema: ZodSchema<T
       const message = issue ? `${path}: ${issue.message}` : 'Validation error'
       return next(new ApiError('VALIDATION', message))
     }
-    for (const key of Object.keys(req.query)) {
-      delete (req.query as Record<string, unknown>)[key]
-    }
-    Object.assign(req.query, result.data)
+    res.locals.validatedQuery = result.data
     next()
   }
+}
+
+export function getValidatedQuery<T>(res: Response): T {
+  return res.locals.validatedQuery as T
 }
 

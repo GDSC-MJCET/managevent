@@ -140,6 +140,125 @@ describe('AN-02: Attendee Operations API', () => {
       expect(res.body.error).toBeNull()
     })
 
+    it('coerces numeric page and limit query parameters and passes strict numbers to Prisma', async () => {
+      vi.mocked(prisma.event.findUnique).mockResolvedValue({
+        id: eventId,
+        club: { ownerId },
+      } as any)
+      vi.mocked(prisma.rsvp.count).mockResolvedValue(10)
+      vi.mocked(prisma.rsvp.findMany).mockResolvedValue([])
+
+      const token = createTestJwt(ownerId, 'club_admin')
+      const res = await request(app)
+        .get(`/api/events/${eventId}/rsvps?page=2&limit=10&status=pending`)
+        .set('Authorization', `Bearer ${token}`)
+
+      expect(res.status).toBe(200)
+      expect(prisma.rsvp.findMany).toHaveBeenCalledWith({
+        where: { eventId, status: 'pending' },
+        orderBy: { createdAt: 'asc' },
+        skip: 10,
+        take: 10,
+        include: expect.any(Object),
+      })
+
+      const lastCall = vi.mocked(prisma.rsvp.findMany).mock.calls.at(-1)?.[0]
+      expect(typeof lastCall?.skip).toBe('number')
+      expect(typeof lastCall?.take).toBe('number')
+      expect(lastCall?.skip).toBe(10)
+      expect(lastCall?.take).toBe(10)
+    })
+
+    it('applies schema default values (page 1, limit 20) when pagination parameters are omitted', async () => {
+      vi.mocked(prisma.event.findUnique).mockResolvedValue({
+        id: eventId,
+        club: { ownerId },
+      } as any)
+      vi.mocked(prisma.rsvp.count).mockResolvedValue(0)
+      vi.mocked(prisma.rsvp.findMany).mockResolvedValue([])
+
+      const token = createTestJwt(ownerId, 'club_admin')
+      const res = await request(app)
+        .get(`/api/events/${eventId}/rsvps`)
+        .set('Authorization', `Bearer ${token}`)
+
+      expect(res.status).toBe(200)
+      expect(prisma.rsvp.findMany).toHaveBeenCalledWith({
+        where: { eventId },
+        orderBy: { createdAt: 'asc' },
+        skip: 0,
+        take: 20,
+        include: expect.any(Object),
+      })
+
+      const lastCall = vi.mocked(prisma.rsvp.findMany).mock.calls.at(-1)?.[0]
+      expect(typeof lastCall?.skip).toBe('number')
+      expect(typeof lastCall?.take).toBe('number')
+      expect(lastCall?.skip).toBe(0)
+      expect(lastCall?.take).toBe(20)
+    })
+
+    it('rejects invalid query parameters and does not invoke Prisma', async () => {
+      vi.mocked(prisma.event.findUnique).mockResolvedValue({
+        id: eventId,
+        club: { ownerId },
+      } as any)
+
+      const token = createTestJwt(ownerId, 'club_admin')
+      const invalidQueries = [
+        '?page=0',
+        '?page=-1',
+        '?page=abc',
+        '?limit=0',
+        '?limit=101',
+        '?status=invalid_status',
+      ]
+
+      for (const query of invalidQueries) {
+        vi.mocked(prisma.rsvp.findMany).mockClear()
+        vi.mocked(prisma.rsvp.count).mockClear()
+
+        const res = await request(app)
+          .get(`/api/events/${eventId}/rsvps${query}`)
+          .set('Authorization', `Bearer ${token}`)
+
+        expect(res.status).toBe(400)
+        expect(res.body.ok).toBe(false)
+        expect(res.body.error.code).toBe('VALIDATION')
+        expect(prisma.rsvp.findMany).not.toHaveBeenCalled()
+        expect(prisma.rsvp.count).not.toHaveBeenCalled()
+      }
+    })
+
+    it('ensures validated query state is strictly request-scoped without cross-request leakage', async () => {
+      vi.mocked(prisma.event.findUnique).mockResolvedValue({
+        id: eventId,
+        club: { ownerId },
+      } as any)
+      vi.mocked(prisma.rsvp.count).mockResolvedValue(0)
+      vi.mocked(prisma.rsvp.findMany).mockResolvedValue([])
+
+      const token = createTestJwt(ownerId, 'club_admin')
+
+      // Request 1 with explicit page=3 and limit=15
+      const res1 = await request(app)
+        .get(`/api/events/${eventId}/rsvps?page=3&limit=15`)
+        .set('Authorization', `Bearer ${token}`)
+      expect(res1.status).toBe(200)
+      const call1 = vi.mocked(prisma.rsvp.findMany).mock.calls.at(-1)?.[0]
+      expect(call1?.skip).toBe(30)
+      expect(call1?.take).toBe(15)
+
+      // Request 2 without query parameters must use defaults (page 1, limit 20) and not retain request 1 state
+      const res2 = await request(app)
+        .get(`/api/events/${eventId}/rsvps`)
+        .set('Authorization', `Bearer ${token}`)
+      expect(res2.status).toBe(200)
+      const call2 = vi.mocked(prisma.rsvp.findMany).mock.calls.at(-1)?.[0]
+      expect(call2?.skip).toBe(0)
+      expect(call2?.take).toBe(20)
+    })
+
     it('handles empty attendee list gracefully', async () => {
       vi.mocked(prisma.event.findUnique).mockResolvedValue({
         id: eventId,
@@ -348,6 +467,44 @@ describe('AN-02: Attendee Operations API', () => {
       expect(res.headers['content-disposition']).toContain(`attachment; filename="attendees-${eventId}.csv"`)
       expect(res.text).toContain('RSVP ID,Name,Email,Roll Number,Branch,Year,Status,Created At,Answers')
       expect(res.text).toContain('"John, Doe"') // escaped comma
+    })
+
+    it('consumes validated status filter in CSV export and passes it to Prisma', async () => {
+      vi.mocked(prisma.event.findUnique).mockResolvedValue({
+        id: eventId,
+        club: { ownerId },
+      } as any)
+      vi.mocked(prisma.rsvp.findMany).mockResolvedValue([])
+
+      const token = createTestJwt(ownerId, 'club_admin')
+      const res = await request(app)
+        .get(`/api/events/${eventId}/rsvps/export?status=approved`)
+        .set('Authorization', `Bearer ${token}`)
+
+      expect(res.status).toBe(200)
+      expect(prisma.rsvp.findMany).toHaveBeenCalledWith({
+        where: { eventId, status: 'approved' },
+        orderBy: { createdAt: 'asc' },
+        include: expect.any(Object),
+      })
+    })
+
+    it('rejects invalid status filter in export without calling Prisma', async () => {
+      vi.mocked(prisma.event.findUnique).mockResolvedValue({
+        id: eventId,
+        club: { ownerId },
+      } as any)
+      vi.mocked(prisma.rsvp.findMany).mockClear()
+
+      const token = createTestJwt(ownerId, 'club_admin')
+      const res = await request(app)
+        .get(`/api/events/${eventId}/rsvps/export?status=unknown`)
+        .set('Authorization', `Bearer ${token}`)
+
+      expect(res.status).toBe(400)
+      expect(res.body.ok).toBe(false)
+      expect(res.body.error.code).toBe('VALIDATION')
+      expect(prisma.rsvp.findMany).not.toHaveBeenCalled()
     })
   })
 })

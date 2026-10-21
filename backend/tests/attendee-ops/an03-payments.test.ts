@@ -162,6 +162,130 @@ describe('AN-03: Payment Verification API', () => {
       expect(res.body.data.items[0].rsvp.user.name).toBe('John Doe')
       expect(res.body.error).toBeNull()
     })
+
+    it('coerces numeric page and limit query parameters and passes strict numbers to Prisma', async () => {
+      vi.mocked(prisma.event.findUnique).mockResolvedValue({
+        id: eventId,
+        club: { ownerId },
+      } as any)
+      vi.mocked(prisma.payment.count).mockResolvedValue(5)
+      vi.mocked(prisma.payment.findMany).mockResolvedValue([])
+
+      const token = createTestJwt(ownerId, 'club_admin')
+      const res = await request(app)
+        .get(`/api/events/${eventId}/payments?page=2&limit=10&status=verified`)
+        .set('Authorization', `Bearer ${token}`)
+
+      expect(res.status).toBe(200)
+      expect(prisma.payment.findMany).toHaveBeenCalledWith({
+        where: {
+          rsvp: { eventId },
+          status: 'verified',
+        },
+        orderBy: { createdAt: 'asc' },
+        skip: 10,
+        take: 10,
+        include: expect.any(Object),
+      })
+
+      const lastCall = vi.mocked(prisma.payment.findMany).mock.calls.at(-1)?.[0]
+      expect(typeof lastCall?.skip).toBe('number')
+      expect(typeof lastCall?.take).toBe('number')
+      expect(lastCall?.skip).toBe(10)
+      expect(lastCall?.take).toBe(10)
+    })
+
+    it('applies schema default values (page 1, limit 20) when pagination parameters are omitted', async () => {
+      vi.mocked(prisma.event.findUnique).mockResolvedValue({
+        id: eventId,
+        club: { ownerId },
+      } as any)
+      vi.mocked(prisma.payment.count).mockResolvedValue(0)
+      vi.mocked(prisma.payment.findMany).mockResolvedValue([])
+
+      const token = createTestJwt(ownerId, 'club_admin')
+      const res = await request(app)
+        .get(`/api/events/${eventId}/payments`)
+        .set('Authorization', `Bearer ${token}`)
+
+      expect(res.status).toBe(200)
+      expect(prisma.payment.findMany).toHaveBeenCalledWith({
+        where: {
+          rsvp: { eventId },
+        },
+        orderBy: { createdAt: 'asc' },
+        skip: 0,
+        take: 20,
+        include: expect.any(Object),
+      })
+
+      const lastCall = vi.mocked(prisma.payment.findMany).mock.calls.at(-1)?.[0]
+      expect(typeof lastCall?.skip).toBe('number')
+      expect(typeof lastCall?.take).toBe('number')
+      expect(lastCall?.skip).toBe(0)
+      expect(lastCall?.take).toBe(20)
+    })
+
+    it('rejects invalid payment query parameters and does not invoke Prisma', async () => {
+      vi.mocked(prisma.event.findUnique).mockResolvedValue({
+        id: eventId,
+        club: { ownerId },
+      } as any)
+
+      const token = createTestJwt(ownerId, 'club_admin')
+      const invalidQueries = [
+        '?page=0',
+        '?page=-1',
+        '?page=xyz',
+        '?limit=0',
+        '?limit=101',
+        '?status=not_a_status',
+      ]
+
+      for (const query of invalidQueries) {
+        vi.mocked(prisma.payment.findMany).mockClear()
+        vi.mocked(prisma.payment.count).mockClear()
+
+        const res = await request(app)
+          .get(`/api/events/${eventId}/payments${query}`)
+          .set('Authorization', `Bearer ${token}`)
+
+        expect(res.status).toBe(400)
+        expect(res.body.ok).toBe(false)
+        expect(res.body.error.code).toBe('VALIDATION')
+        expect(prisma.payment.findMany).not.toHaveBeenCalled()
+        expect(prisma.payment.count).not.toHaveBeenCalled()
+      }
+    })
+
+    it('ensures payment query state is strictly request-scoped without cross-request leakage', async () => {
+      vi.mocked(prisma.event.findUnique).mockResolvedValue({
+        id: eventId,
+        club: { ownerId },
+      } as any)
+      vi.mocked(prisma.payment.count).mockResolvedValue(0)
+      vi.mocked(prisma.payment.findMany).mockResolvedValue([])
+
+      const token = createTestJwt(ownerId, 'club_admin')
+
+      // Request 1 with explicit page=3 and limit=5
+      const res1 = await request(app)
+        .get(`/api/events/${eventId}/payments?page=3&limit=5`)
+        .set('Authorization', `Bearer ${token}`)
+      expect(res1.status).toBe(200)
+      const call1 = vi.mocked(prisma.payment.findMany).mock.calls.at(-1)?.[0]
+      expect(call1?.skip).toBe(10)
+      expect(call1?.take).toBe(5)
+
+      // Request 2 without query parameters must use defaults (page 1, limit 20)
+      const res2 = await request(app)
+        .get(`/api/events/${eventId}/payments`)
+        .set('Authorization', `Bearer ${token}`)
+      expect(res2.status).toBe(200)
+      const call2 = vi.mocked(prisma.payment.findMany).mock.calls.at(-1)?.[0]
+      expect(call2?.skip).toBe(0)
+      expect(call2?.take).toBe(20)
+    })
   })
 
   describe('PATCH /api/payments/:rsvpId', () => {
