@@ -1,0 +1,19 @@
+﻿{
+  "description": "Example response for PATCH /api/payments/:rsvpId",
+  "request": {
+    "method": "PATCH",
+    "path": "/api/payments/r1a2b3c4-0000-0000-0000-000000000001",
+    "body": {
+      "status": "verified"
+    }
+  },
+  "response": {
+    "ok": true,
+    "data": {
+      "rsvpId": "r1a2b3c4-0000-0000-0000-000000000001",
+      "status": "verified",
+      "verifiedAt": "2026-10-22T00:05:00.000Z"
+    },
+    "error": null
+  }
+}

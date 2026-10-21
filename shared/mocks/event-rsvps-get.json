@@ -1,0 +1,36 @@
+﻿{
+  "description": "Example response for GET /api/events/:id/rsvps",
+  "request": {
+    "method": "GET",
+    "path": "/api/events/e1a2b3c4-0000-0000-0000-000000000001/rsvps?page=1&limit=20"
+  },
+  "response": {
+    "ok": true,
+    "data": {
+      "items": [
+        {
+          "id": "r1a2b3c4-0000-0000-0000-000000000001",
+          "eventId": "e1a2b3c4-0000-0000-0000-000000000001",
+          "userId": "u1a2b3c4-0000-0000-0000-000000000002",
+          "user": {
+            "name": "Jane Student",
+            "email": "jane@example.com",
+            "rollNumber": "1604-22-733-001",
+            "branch": "CSE",
+            "year": 3
+          },
+          "status": "pending",
+          "answers": {
+            "Branch": "CSE",
+            "Laptop": true
+          },
+          "createdAt": "2026-10-22T00:00:00.000Z"
+        }
+      ],
+      "page": 1,
+      "limit": 20,
+      "total": 1
+    },
+    "error": null
+  }
+}

@@ -1,7 +1,8 @@
 ﻿import type { Request, Response, NextFunction } from 'express'
 import { prisma } from '../../db/index.js'
 import { ApiError } from '../../lib/errors.js'
-import type { PutRsvpFormBody } from './schema.js'
+import { parseOptionalAuth } from '../../middleware/auth.js'
+import type { PutRsvpFormBody, RsvpFormFieldInput } from './schema.js'
 
 export async function getRsvpForm(
   req: Request,
@@ -18,11 +19,26 @@ export async function getRsvpForm(
   try {
     const event = await prisma.event.findUnique({
       where: { id: eventId },
-      select: { id: true },
+      select: {
+        id: true,
+        status: true,
+        club: {
+          select: { ownerId: true },
+        },
+      },
     })
 
     if (!event) {
       return next(new ApiError('NOT_FOUND', 'Event not found'))
+    }
+
+    // BR-E4: Students only see open|live|ended events. draft is club-only.
+    if (event.status === 'draft') {
+      parseOptionalAuth(req)
+      const isOwner = req.user && req.user.id === event.club.ownerId
+      if (!isOwner) {
+        return next(new ApiError('FORBIDDEN', 'Only the club owner can view draft event RSVP forms'))
+      }
     }
 
     const fields = await prisma.rsvpFormField.findMany({
@@ -86,7 +102,7 @@ export async function putRsvpForm(
       }
 
       await tx.rsvpFormField.createMany({
-        data: body.fields.map((f) => ({
+        data: body.fields.map((f: RsvpFormFieldInput) => ({
           eventId,
           label: f.label,
           type: f.type,

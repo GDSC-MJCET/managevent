@@ -6,6 +6,7 @@ import {
   PutRsvpFormBodySchema,
   RsvpFormFieldInputSchema,
 } from '../../src/modules/attendee-ops/schema.js'
+import { createTestJwt } from '../helpers/auth.js'
 
 vi.mock('../../src/db/index.js', () => {
   const mockPrisma = {
@@ -49,11 +50,34 @@ describe('AN-01: Custom RSVP Form Contract & API', () => {
           type,
           required: false,
           position: 0,
-          options: type === 'select' ? ['Opt 1', 'Opt 2'] : undefined,
+          options: type === 'select' ? ['Choice A', 'Choice B'] : undefined,
         }
         const result = RsvpFormFieldInputSchema.safeParse(payload)
         expect(result.success).toBe(true)
       }
+    })
+
+    it('treats checkbox as boolean question without options', () => {
+      const payload = {
+        label: 'Will you bring your own laptop?',
+        type: 'checkbox',
+        required: true,
+        position: 0,
+      }
+      const result = RsvpFormFieldInputSchema.safeParse(payload)
+      expect(result.success).toBe(true)
+    })
+
+    it('rejects options on checkbox questions', () => {
+      const payload = {
+        label: 'Will you bring your own laptop?',
+        type: 'checkbox',
+        required: true,
+        position: 0,
+        options: ['Yes', 'No'],
+      }
+      const result = RsvpFormFieldInputSchema.safeParse(payload)
+      expect(result.success).toBe(false)
     })
 
     it('rejects invalid field types', () => {
@@ -141,8 +165,71 @@ describe('AN-01: Custom RSVP Form Contract & API', () => {
       })
     })
 
-    it('returns saved questions ordered by position', async () => {
-      vi.mocked(prisma.event.findUnique).mockResolvedValue({ id: validEventId } as any)
+    it('returns 403 for draft event when caller is unauthenticated', async () => {
+      vi.mocked(prisma.event.findUnique).mockResolvedValue({
+        id: validEventId,
+        status: 'draft',
+        club: { ownerId },
+      } as any)
+
+      const res = await request(app).get(`/api/events/${validEventId}/rsvp-form`)
+
+      expect(res.status).toBe(403)
+      expect(res.body.ok).toBe(false)
+      expect(res.body.error.code).toBe('FORBIDDEN')
+    })
+
+    it('returns 403 for draft event when caller is non-owner', async () => {
+      vi.mocked(prisma.event.findUnique).mockResolvedValue({
+        id: validEventId,
+        status: 'draft',
+        club: { ownerId },
+      } as any)
+
+      const nonOwnerToken = createTestJwt(nonOwnerId, 'club_admin')
+      const res = await request(app)
+        .get(`/api/events/${validEventId}/rsvp-form`)
+        .set('Authorization', `Bearer ${nonOwnerToken}`)
+
+      expect(res.status).toBe(403)
+      expect(res.body.ok).toBe(false)
+      expect(res.body.error.code).toBe('FORBIDDEN')
+    })
+
+    it('allows club owner to view draft event rsvp-form', async () => {
+      vi.mocked(prisma.event.findUnique).mockResolvedValue({
+        id: validEventId,
+        status: 'draft',
+        club: { ownerId },
+      } as any)
+      vi.mocked(prisma.rsvpFormField.findMany).mockResolvedValue([
+        {
+          id: 'f1',
+          eventId: validEventId,
+          label: 'Laptop required?',
+          type: 'checkbox',
+          required: false,
+          position: 0,
+          options: null,
+        },
+      ] as any)
+
+      const ownerToken = createTestJwt(ownerId, 'club_admin')
+      const res = await request(app)
+        .get(`/api/events/${validEventId}/rsvp-form`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+
+      expect(res.status).toBe(200)
+      expect(res.body.ok).toBe(true)
+      expect(res.body.data.fields).toHaveLength(1)
+    })
+
+    it('returns saved questions for open event without authentication', async () => {
+      vi.mocked(prisma.event.findUnique).mockResolvedValue({
+        id: validEventId,
+        status: 'open',
+        club: { ownerId },
+      } as any)
       vi.mocked(prisma.rsvpFormField.findMany).mockResolvedValue([
         {
           id: 'f1',
@@ -194,9 +281,10 @@ describe('AN-01: Custom RSVP Form Contract & API', () => {
         club: { ownerId },
       } as any)
 
+      const nonOwnerToken = createTestJwt(nonOwnerId, 'club_admin')
       const res = await request(app)
         .put(`/api/events/${validEventId}/rsvp-form`)
-        .set('x-test-user', JSON.stringify({ id: nonOwnerId, role: 'club_admin' }))
+        .set('Authorization', `Bearer ${nonOwnerToken}`)
         .send({ fields: [] })
 
       expect(res.status).toBe(403)
@@ -210,9 +298,10 @@ describe('AN-01: Custom RSVP Form Contract & API', () => {
         club: { ownerId },
       } as any)
 
+      const ownerToken = createTestJwt(ownerId, 'club_admin')
       const res = await request(app)
         .put(`/api/events/${validEventId}/rsvp-form`)
-        .set('x-test-user', JSON.stringify({ id: ownerId, role: 'club_admin' }))
+        .set('Authorization', `Bearer ${ownerToken}`)
         .send({
           fields: [
             {
@@ -220,7 +309,7 @@ describe('AN-01: Custom RSVP Form Contract & API', () => {
               type: 'select',
               required: true,
               position: 0,
-              options: ['Only 1 option'], // invalid
+              options: ['Only 1 option'],
             },
           ],
         })
@@ -261,9 +350,10 @@ describe('AN-01: Custom RSVP Form Contract & API', () => {
       vi.mocked(prisma.rsvpFormField.createMany).mockResolvedValue({ count: 2 } as any)
       vi.mocked(prisma.rsvpFormField.findMany).mockResolvedValue(savedFields as any)
 
+      const ownerToken = createTestJwt(ownerId, 'club_admin')
       const res = await request(app)
         .put(`/api/events/${validEventId}/rsvp-form`)
-        .set('x-test-user', JSON.stringify({ id: ownerId, role: 'club_admin' }))
+        .set('Authorization', `Bearer ${ownerToken}`)
         .send({
           fields: [
             {
