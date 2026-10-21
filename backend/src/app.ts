@@ -4,6 +4,8 @@ import { allowedOrigins, env } from './config/env.js'
 import { prisma } from './db/index.js'
 import { errorHandler, notFoundHandler } from './lib/errors.js'
 
+import { attendeeOpsRouter } from './modules/attendee-ops/router.js'
+
 export const app = express()
 
 app.disable('x-powered-by')
@@ -41,5 +43,8 @@ app.get('/api/health', async (_req, res) => {
   }
 })
 
+app.use('/api', attendeeOpsRouter)
+
 app.use(notFoundHandler)
 app.use(errorHandler)
+

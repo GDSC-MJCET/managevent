@@ -304,6 +304,9 @@ model RsvpFormField {
   type     RsvpFieldType
   required Boolean       @default(false)
   position Int           @default(0)
+  // AN-01: options stores choices for select/checkbox fields.
+  // Coordinate with Ali: include this column in the initial migration (AL-02).
+  options  Json?
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
