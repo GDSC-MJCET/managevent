@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import type { Request, Response, NextFunction } from 'express'
 import { prisma } from '../../db/index.js'
+import { Prisma } from '@prisma/client'
 import { ApiError } from '../../lib/errors.js'
 import { parseOptionalAuth } from '../../middleware/auth.js'
 import { getValidatedQuery } from '../../middleware/validate.js'
@@ -589,4 +590,195 @@ export async function patchPayment(
     next(err)
   }
 }
+
+// ── AN-04: Event-Day Check-in & Operations ──────────────────────────────────
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+export async function postCheckin(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const eventId = getSingleParam(req.params.id ?? req.params.eventId)
+  const rsvpId = getSingleParam(req.params.rsvpId)
+
+  if (!eventId || !UUID_REGEX.test(eventId)) {
+    return next(new ApiError('VALIDATION', 'Invalid event ID'))
+  }
+
+  if (!rsvpId || !UUID_REGEX.test(rsvpId)) {
+    return next(new ApiError('VALIDATION', 'Invalid RSVP ID'))
+  }
+
+  try {
+    const [event, rsvp] = await Promise.all([
+      prisma.event.findUnique({
+        where: { id: eventId },
+        select: { id: true, status: true },
+      }),
+      prisma.rsvp.findUnique({
+        where: { id: rsvpId },
+        select: { id: true, eventId: true, status: true },
+      }),
+    ])
+
+    if (!event) {
+      return next(new ApiError('NOT_FOUND', 'Event not found'))
+    }
+
+    // BR-R8: Check-in only allowed while event is live
+    if (event.status !== 'live') {
+      return next(new ApiError('CONFLICT', 'Check-in is only allowed when event is live'))
+    }
+
+    if (!rsvp || rsvp.eventId !== eventId) {
+      return next(new ApiError('NOT_FOUND', 'RSVP not found for this event'))
+    }
+
+    // BR-R8: Check-in only allowed for approved RSVPs
+    if (rsvp.status !== 'approved') {
+      return next(new ApiError('NOT_APPROVED', 'Only approved RSVPs can be checked in'))
+    }
+
+    // BR-R8: Idempotent check-in with atomic create and P2002 unique-conflict recovery.
+    // Preserves original checkedInAt and checkedInBy on repeat requests or race conditions.
+    let checkin
+    try {
+      checkin = await prisma.checkin.create({
+        data: {
+          id: crypto.randomUUID(),
+          rsvpId,
+          checkedInBy: req.user!.id,
+        },
+      })
+    } catch (createErr: unknown) {
+      const isUniqueConflict =
+        (createErr instanceof Prisma.PrismaClientKnownRequestError && createErr.code === 'P2002') ||
+        (typeof createErr === 'object' && createErr !== null && (createErr as { code?: string }).code === 'P2002')
+
+      if (isUniqueConflict) {
+        const existing = await prisma.checkin.findUnique({
+          where: { rsvpId },
+        })
+        if (!existing) {
+          throw createErr
+        }
+        checkin = existing
+      } else {
+        throw createErr
+      }
+    }
+
+    res.json({
+      ok: true,
+      data: {
+        id: checkin.id,
+        rsvpId: checkin.rsvpId,
+        checkedInAt: checkin.checkedInAt.toISOString(),
+        checkedInBy: checkin.checkedInBy,
+      },
+      error: null,
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function deleteCheckin(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const eventId = getSingleParam(req.params.id ?? req.params.eventId)
+  const rsvpId = getSingleParam(req.params.rsvpId)
+
+  if (!eventId || !UUID_REGEX.test(eventId)) {
+    return next(new ApiError('VALIDATION', 'Invalid event ID'))
+  }
+
+  if (!rsvpId || !UUID_REGEX.test(rsvpId)) {
+    return next(new ApiError('VALIDATION', 'Invalid RSVP ID'))
+  }
+
+  try {
+    const rsvp = await prisma.rsvp.findUnique({
+      where: { id: rsvpId },
+      select: { id: true, eventId: true },
+    })
+
+    if (!rsvp || rsvp.eventId !== eventId) {
+      return next(new ApiError('NOT_FOUND', 'RSVP not found for this event'))
+    }
+
+    // BR-R8: Idempotent undo check-in
+    await prisma.checkin.deleteMany({
+      where: { rsvpId },
+    })
+
+    res.json({
+      ok: true,
+      data: {
+        rsvpId,
+        checkedIn: false,
+      },
+      error: null,
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function getEventOpsMetrics(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const eventId = getSingleParam(req.params.id ?? req.params.eventId)
+
+  if (!eventId || !UUID_REGEX.test(eventId)) {
+    return next(new ApiError('VALIDATION', 'Invalid event ID'))
+  }
+
+  try {
+    const [registeredCount, approvedCount, checkedInCount] = await Promise.all([
+      // registeredCount: all RSVP records for the event except those with cancelled status
+      prisma.rsvp.count({
+        where: {
+          eventId,
+          status: { not: 'cancelled' },
+        },
+      }),
+      // approvedCount: all RSVP records for the event whose current status is approved
+      prisma.rsvp.count({
+        where: {
+          eventId,
+          status: 'approved',
+        },
+      }),
+      // checkedInCount: check-in records whose associated RSVP belongs to the event
+      prisma.checkin.count({
+        where: {
+          rsvp: {
+            eventId,
+          },
+        },
+      }),
+    ])
+
+    res.json({
+      ok: true,
+      data: {
+        eventId,
+        registeredCount,
+        approvedCount,
+        checkedInCount,
+      },
+      error: null,
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+
 

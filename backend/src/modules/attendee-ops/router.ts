@@ -10,6 +10,9 @@ import {
   exportEventRsvps,
   getEventPayments,
   patchPayment,
+  postCheckin,
+  deleteCheckin,
+  getEventOpsMetrics,
 } from './controller.js'
 import {
   PutRsvpFormBodySchema,
@@ -78,5 +81,27 @@ attendeeOpsRouter.patch(
   requireAuth,
   validateBody(PatchPaymentBodySchema),
   patchPayment,
+)
+
+// AN-04: Event-day check-in & operations
+attendeeOpsRouter.post(
+  '/events/:id/checkin/:rsvpId',
+  requireAuth,
+  requireClubOwner,
+  postCheckin,
+)
+
+attendeeOpsRouter.delete(
+  '/events/:id/checkin/:rsvpId',
+  requireAuth,
+  requireClubOwner,
+  deleteCheckin,
+)
+
+attendeeOpsRouter.get(
+  '/events/:id/ops',
+  requireAuth,
+  requireClubOwner,
+  getEventOpsMetrics,
 )
 

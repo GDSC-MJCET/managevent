@@ -145,7 +145,12 @@ export async function requireClubOwner(req: Request, _res: Response, next: NextF
   const rawId = req.params.id ?? req.params.eventId
   const eventId = Array.isArray(rawId) ? rawId[0] : rawId
   if (!eventId) {
-    return next(new ApiError('VALIDATION', 'Event ID required'))
+    return next(new ApiError('VALIDATION', 'Event ID is required'))
+  }
+
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!UUID_REGEX.test(eventId)) {
+    return next(new ApiError('VALIDATION', 'Invalid event ID'))
   }
 
   try {
