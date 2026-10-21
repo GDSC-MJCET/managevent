@@ -46,7 +46,7 @@ Everyone carries the same load: eleven REST endpoints, six or seven pages, three
 |---|---|---|---|---|---|
 | Ali | `auth-rsvp` | 11 + 4 guards | 6 | 3 | Auth, guards, the RSVP capacity and waitlist engine |
 | Amar | `quiz-live`, `sockets` | 11 + WebSocket gateway | 6 | 4 | Socket gateway, live quiz engine, live client state |
-|syedaa Ayesha | `events` | 11 | 7 | 4 | Event lifecycle state machine, discovery feed, live doubts board |
+|syeda Ayesha | `events` | 11 | 7 | 4 | Event lifecycle state machine, discovery feed, live doubts board |
 | Anas | `attendee-ops` | 11 | 6 | 3 | Approval and payment workflow, event-day check-in, dynamic form builder |
 | Ayub | `clubs-uploads`, `ui` | 11 | 6 | 3 | Club approval workflow, upload service, design system |
 | adnan | `recap` | 11 | 6 | 4 | Recap aggregation, bulk gallery, certificate assignment |
@@ -63,7 +63,7 @@ Everyone carries the same load: eleven REST endpoints, six or seven pages, three
 - Pages: `/events/:id/live` (tabs: Quiz, Ask a doubt, Meet the speaker), `/club/events/:id/live` (control room), `/club/events/:id/quiz` (builder), quiz results screen, `LeaderboardPanel`, `useSocket` hook and room state
 - Also owns: the socket gateway and `emitToRoom(eventId, name, payload)`
 
-**syedaa Ayesha: Events and live doubts**
+**syeda Ayesha: Events and live doubts**
 - Tables: `events`, `event_settings`, `doubts`, `doubt_votes`
 - Pages: `/` (Discover), `/events/:id`, `/club/events`, `/club/events/new`, `/club/events/:id/edit`, Doubts board (audience tab and club moderation panel), `EventCard`
 
