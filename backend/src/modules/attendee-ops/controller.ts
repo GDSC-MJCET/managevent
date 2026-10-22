@@ -24,6 +24,8 @@ function getSingleParam(param: string | string[] | undefined): string | undefine
   return Array.isArray(param) ? param[0] : param
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 function formatFormField(f: {
   id: string
   label: string
@@ -51,8 +53,8 @@ export async function getRsvpForm(
 ): Promise<void> {
   const eventId = getSingleParam(req.params.id ?? req.params.eventId)
 
-  if (!eventId) {
-    return next(new ApiError('VALIDATION', 'Event ID is required'))
+  if (!eventId || !UUID_REGEX.test(eventId)) {
+    return next(new ApiError('VALIDATION', 'Invalid event ID'))
   }
 
   try {
@@ -229,8 +231,8 @@ export async function patchRsvp(
 ): Promise<void> {
   const rsvpId = getSingleParam(req.params.id)
 
-  if (!rsvpId) {
-    return next(new ApiError('VALIDATION', 'RSVP ID is required'))
+  if (!rsvpId || !UUID_REGEX.test(rsvpId)) {
+    return next(new ApiError('VALIDATION', 'Invalid RSVP ID'))
   }
 
   const body = req.body as PatchRsvpBody
@@ -499,8 +501,8 @@ export async function patchPayment(
 ): Promise<void> {
   const rsvpId = getSingleParam(req.params.rsvpId ?? req.params.id)
 
-  if (!rsvpId) {
-    return next(new ApiError('VALIDATION', 'RSVP ID is required'))
+  if (!rsvpId || !UUID_REGEX.test(rsvpId)) {
+    return next(new ApiError('VALIDATION', 'Invalid RSVP ID'))
   }
 
   const body = req.body as PatchPaymentBody
@@ -592,8 +594,6 @@ export async function patchPayment(
 }
 
 // ── AN-04: Event-Day Check-in & Operations ──────────────────────────────────
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export async function postCheckin(
   req: Request,

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * attendee-ops contract — AN-01, AN-02, AN-03, AN-04
  *
  * Owner: Anas
@@ -21,12 +21,12 @@ export const RsvpFormFieldInputSchema = z
     options: z.array(z.string().min(1, 'Option cannot be blank')).optional(),
   })
   .superRefine((field, ctx) => {
-    if (field.type === 'select') {
+    if (field.type === 'select' || field.type === 'checkbox') {
       if (!field.options || field.options.length < 2) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['options'],
-          message: '"select" fields require at least 2 options',
+          message: `"${field.type}" fields require at least 2 options`,
         })
       }
     } else {

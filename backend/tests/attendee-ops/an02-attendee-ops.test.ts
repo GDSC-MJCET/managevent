@@ -280,6 +280,16 @@ describe('AN-02: Attendee Operations API', () => {
   })
 
   describe('PATCH /api/rsvps/:id', () => {
+    it('returns 400 VALIDATION for non-UUID RSVP ID', async () => {
+      const token = createTestJwt(ownerId, 'club_admin')
+      const res = await request(app)
+        .patch('/api/rsvps/not-a-uuid')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ status: 'approved' })
+      expect(res.status).toBe(400)
+      expect(res.body.error.code).toBe('VALIDATION')
+    })
+
     it('returns 401 when unauthenticated', async () => {
       const res = await request(app)
         .patch(`/api/rsvps/${rsvpId1}`)

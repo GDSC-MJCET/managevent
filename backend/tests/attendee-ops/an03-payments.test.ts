@@ -289,6 +289,16 @@ describe('AN-03: Payment Verification API', () => {
   })
 
   describe('PATCH /api/payments/:rsvpId', () => {
+    it('returns 400 VALIDATION for non-UUID RSVP ID', async () => {
+      const token = createTestJwt(ownerId, 'club_admin')
+      const res = await request(app)
+        .patch('/api/payments/not-a-uuid')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ status: 'verified' })
+      expect(res.status).toBe(400)
+      expect(res.body.error.code).toBe('VALIDATION')
+    })
+
     it('returns 401 when unauthenticated', async () => {
       const res = await request(app)
         .patch(`/api/payments/${rsvpId}`)

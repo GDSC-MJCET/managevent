@@ -45,6 +45,15 @@ app.get('/api/health', async (_req, res) => {
 
 app.use('/api', attendeeOpsRouter)
 
+// TODO(AL-04/AL-05): After Ali's rsvpService.transition() is implemented (AL-07),
+// register it here before the router is mounted so all status-changing endpoints function at runtime:
+//
+//   import { setRsvpTransitionService } from './modules/attendee-ops/services/rsvpTransitionProvider.js'
+//   import { rsvpService } from './modules/auth-rsvp/services/rsvpService.js'  // Ali's module path
+//   setRsvpTransitionService(rsvpService)
+//
+// Until then, PATCH /api/rsvps/:id, POST bulk, and PATCH /api/payments/:rsvpId return HTTP 500 at runtime.
+
 app.use(notFoundHandler)
 app.use(errorHandler)
 

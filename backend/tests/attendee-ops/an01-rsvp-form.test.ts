@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import request from 'supertest'
 import { app } from '../../src/app.js'
 import { prisma } from '../../src/db/index.js'
@@ -50,34 +50,44 @@ describe('AN-01: Custom RSVP Form Contract & API', () => {
           type,
           required: false,
           position: 0,
-          options: type === 'select' ? ['Choice A', 'Choice B'] : undefined,
+          options: type === 'select' || type === 'checkbox' ? ['Choice A', 'Choice B'] : undefined,
         }
         const result = RsvpFormFieldInputSchema.safeParse(payload)
         expect(result.success).toBe(true)
       }
     })
 
-    it('treats checkbox as boolean question without options', () => {
+    it('accepts checkbox with 2+ options (multi-choice)', () => {
       const payload = {
-        label: 'Will you bring your own laptop?',
+        label: 'Which workshops will you attend?',
         type: 'checkbox',
         required: true,
         position: 0,
+        options: ['Web Dev', 'AI/ML'],
       }
       const result = RsvpFormFieldInputSchema.safeParse(payload)
       expect(result.success).toBe(true)
     })
 
-    it('rejects options on checkbox questions', () => {
-      const payload = {
-        label: 'Will you bring your own laptop?',
+    it('rejects checkbox without options or with fewer than 2 options', () => {
+      const payload1 = {
+        label: 'Which workshops will you attend?',
         type: 'checkbox',
         required: true,
         position: 0,
-        options: ['Yes', 'No'],
       }
-      const result = RsvpFormFieldInputSchema.safeParse(payload)
-      expect(result.success).toBe(false)
+      const result1 = RsvpFormFieldInputSchema.safeParse(payload1)
+      expect(result1.success).toBe(false)
+
+      const payload2 = {
+        label: 'Which workshops will you attend?',
+        type: 'checkbox',
+        required: true,
+        position: 0,
+        options: ['Only one'],
+      }
+      const result2 = RsvpFormFieldInputSchema.safeParse(payload2)
+      expect(result2.success).toBe(false)
     })
 
     it('rejects invalid field types', () => {
@@ -149,6 +159,12 @@ describe('AN-01: Custom RSVP Form Contract & API', () => {
   })
 
   describe('GET /api/events/:id/rsvp-form', () => {
+    it('returns 400 VALIDATION for non-UUID event ID', async () => {
+      const res = await request(app).get('/api/events/not-a-uuid/rsvp-form')
+      expect(res.status).toBe(400)
+      expect(res.body.error.code).toBe('VALIDATION')
+    })
+
     it('returns 404 when event does not exist', async () => {
       vi.mocked(prisma.event.findUnique).mockResolvedValue(null)
 
@@ -338,11 +354,11 @@ describe('AN-01: Custom RSVP Form Contract & API', () => {
         {
           id: 'field-2',
           eventId: validEventId,
-          label: 'Laptop required?',
+          label: 'Which topics interest you?',
           type: 'checkbox',
           required: true,
           position: 1,
-          options: null,
+          options: ['Web Dev', 'AI/ML'],
         },
       ]
 
@@ -364,10 +380,11 @@ describe('AN-01: Custom RSVP Form Contract & API', () => {
               options: ['1st Year', '2nd Year', '3rd Year', '4th Year'],
             },
             {
-              label: 'Laptop required?',
+              label: 'Which topics interest you?',
               type: 'checkbox',
               required: true,
               position: 1,
+              options: ['Web Dev', 'AI/ML'],
             },
           ],
         })
@@ -377,7 +394,7 @@ describe('AN-01: Custom RSVP Form Contract & API', () => {
       expect(res.body.data.fields).toHaveLength(2)
       expect(res.body.data.fields[0].label).toBe('Year of study')
       expect(res.body.data.fields[0].options).toEqual(['1st Year', '2nd Year', '3rd Year', '4th Year'])
-      expect(res.body.data.fields[1].options).toBeNull()
+      expect(res.body.data.fields[1].options).toEqual(['Web Dev', 'AI/ML'])
       expect(res.body.error).toBeNull()
     })
   })
