@@ -304,6 +304,10 @@ model RsvpFormField {
   type     RsvpFieldType
   required Boolean       @default(false)
   position Int           @default(0)
+  // AN-01: options stores choices for select/checkbox fields (both types require ≥2 options).
+  // TODO(AL-02): Ali must include `options Json?` on `rsvp_form_fields` in the initial migration.
+  //              Running `prisma migrate dev` without this column will cause runtime errors on AN-01 endpoints.
+  options  Json?
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 

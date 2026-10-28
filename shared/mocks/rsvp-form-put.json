@@ -1,0 +1,74 @@
+﻿{
+  "description": "Example request/response for PUT /api/events/:id/rsvp-form",
+  "request": {
+    "method": "PUT",
+    "path": "/api/events/e1a2b3c4-0000-0000-0000-000000000001/rsvp-form",
+    "headers": {
+      "Authorization": "Bearer <club_owner_jwt>",
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "fields": [
+        {
+          "label": "Full Name",
+          "type": "text",
+          "required": true,
+          "position": 0
+        },
+        {
+          "label": "Which year are you studying in?",
+          "type": "select",
+          "required": true,
+          "position": 1,
+          "options": ["1st Year", "2nd Year", "3rd Year", "4th Year"]
+        }
+      ]
+    }
+  },
+  "response": {
+    "ok": true,
+    "data": {
+      "eventId": "e1a2b3c4-0000-0000-0000-000000000001",
+      "fields": [
+        {
+          "id": "f1000000-0000-0000-0000-000000000001",
+          "label": "Full Name",
+          "type": "text",
+          "required": true,
+          "position": 0,
+          "options": null
+        },
+        {
+          "id": "f1000000-0000-0000-0000-000000000002",
+          "label": "Which year are you studying in?",
+          "type": "select",
+          "required": true,
+          "position": 1,
+          "options": ["1st Year", "2nd Year", "3rd Year", "4th Year"]
+        }
+      ]
+    },
+    "error": null
+  },
+  "error_examples": [
+    {
+      "scenario": "select field missing options",
+      "request_body": {
+        "fields": [{ "label": "Pick one", "type": "select", "required": true, "position": 0 }]
+      },
+      "response": {
+        "ok": false,
+        "data": null,
+        "error": { "code": "VALIDATION", "message": "fields.0.options: \"select\" fields require at least 2 options" }
+      }
+    },
+    {
+      "scenario": "unauthenticated request",
+      "response": {
+        "ok": false,
+        "data": null,
+        "error": { "code": "UNAUTHENTICATED", "message": "Authentication required" }
+      }
+    }
+  ]
+}
