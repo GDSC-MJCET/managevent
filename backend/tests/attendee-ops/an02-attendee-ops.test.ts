@@ -137,7 +137,47 @@ describe('AN-02: Attendee Operations API', () => {
       expect(res.body.data.items).toHaveLength(1)
       expect(res.body.data.items[0].id).toBe(rsvpId1)
       expect(res.body.data.items[0].user.name).toBe('Ali Student')
+      expect(res.body.data.items[0].checkedIn).toBe(false)
+      expect(res.body.data.items[0].checkedInAt).toBeNull()
       expect(res.body.error).toBeNull()
+    })
+
+    it('returns checkedIn: true and ISO checkedInAt when a checkin record exists', async () => {
+      const checkedInTime = new Date('2026-10-22T10:00:00.000Z')
+      vi.mocked(prisma.event.findUnique).mockResolvedValue({
+        id: eventId,
+        club: { ownerId },
+      } as any)
+      vi.mocked(prisma.rsvp.count).mockResolvedValue(1)
+      vi.mocked(prisma.rsvp.findMany).mockResolvedValue([
+        {
+          id: rsvpId1,
+          eventId,
+          userId: 'u1',
+          status: 'approved',
+          answers: null,
+          createdAt: new Date('2026-10-22T00:00:00.000Z'),
+          user: {
+            name: 'Ali Student',
+            email: 'ali@example.com',
+            rollNumber: '1604-22-733-001',
+            branch: 'CSE',
+            year: 3,
+          },
+          checkin: {
+            checkedInAt: checkedInTime,
+          },
+        },
+      ] as any)
+
+      const token = createTestJwt(ownerId, 'club_admin')
+      const res = await request(app)
+        .get(`/api/events/${eventId}/rsvps`)
+        .set('Authorization', `Bearer ${token}`)
+
+      expect(res.status).toBe(200)
+      expect(res.body.data.items[0].checkedIn).toBe(true)
+      expect(res.body.data.items[0].checkedInAt).toBe('2026-10-22T10:00:00.000Z')
     })
 
     it('coerces numeric page and limit query parameters and passes strict numbers to Prisma', async () => {
@@ -411,8 +451,8 @@ describe('AN-02: Attendee Operations API', () => {
 
       expect(res.status).toBe(200)
       expect(res.body.ok).toBe(true)
-      expect(res.body.data.approved).toEqual([rsvpId1])
-      expect(res.body.data.unapproved).toEqual([
+      expect(res.body.data.processed).toEqual([rsvpId1])
+      expect(res.body.data.unprocessed).toEqual([
         { rsvpId: rsvpId2, reason: 'Event capacity reached' },
       ])
     })
@@ -435,10 +475,82 @@ describe('AN-02: Attendee Operations API', () => {
         .send({ rsvpIds: [rsvpId1, rsvpId2] })
 
       expect(res.status).toBe(200)
-      expect(res.body.data.approved).toEqual([rsvpId1])
-      expect(res.body.data.unapproved).toEqual([
+      expect(res.body.data.processed).toEqual([rsvpId1])
+      expect(res.body.data.unprocessed).toEqual([
         { rsvpId: rsvpId2, reason: 'RSVP does not belong to this event' },
       ])
+    })
+
+    it('processes bulk waitlist and NEVER calls transition with approved status', async () => {
+      vi.mocked(prisma.event.findUnique).mockResolvedValue({
+        id: eventId,
+        club: { ownerId },
+      } as any)
+
+      vi.mocked(prisma.rsvp.findMany).mockResolvedValue([
+        { id: rsvpId1, status: 'pending' },
+      ] as any)
+
+      vi.mocked(mockTransitionService.transition).mockResolvedValue({
+        success: true,
+        rsvp: { id: rsvpId1, eventId, userId: 'u1', status: 'waitlist' },
+      })
+
+      const token = createTestJwt(ownerId, 'club_admin')
+      const res = await request(app)
+        .post(`/api/events/${eventId}/rsvps/bulk`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ status: 'waitlist', rsvpIds: [rsvpId1] })
+
+      expect(res.status).toBe(200)
+      expect(res.body.ok).toBe(true)
+      expect(res.body.data.status).toBe('waitlist')
+      expect(res.body.data.processed).toEqual([rsvpId1])
+      expect(res.body.data.unprocessed).toEqual([])
+      expect(mockTransitionService.transition).toHaveBeenCalledWith({
+        rsvpId: rsvpId1,
+        toStatus: 'waitlist',
+        actorId: ownerId,
+      })
+      expect(mockTransitionService.transition).not.toHaveBeenCalledWith(
+        expect.objectContaining({ toStatus: 'approved' }),
+      )
+    })
+
+    it('processes bulk reject and NEVER calls transition with approved status', async () => {
+      vi.mocked(prisma.event.findUnique).mockResolvedValue({
+        id: eventId,
+        club: { ownerId },
+      } as any)
+
+      vi.mocked(prisma.rsvp.findMany).mockResolvedValue([
+        { id: rsvpId1, status: 'pending' },
+      ] as any)
+
+      vi.mocked(mockTransitionService.transition).mockResolvedValue({
+        success: true,
+        rsvp: { id: rsvpId1, eventId, userId: 'u1', status: 'rejected' },
+      })
+
+      const token = createTestJwt(ownerId, 'club_admin')
+      const res = await request(app)
+        .post(`/api/events/${eventId}/rsvps/bulk`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ status: 'rejected', rsvpIds: [rsvpId1] })
+
+      expect(res.status).toBe(200)
+      expect(res.body.ok).toBe(true)
+      expect(res.body.data.status).toBe('rejected')
+      expect(res.body.data.processed).toEqual([rsvpId1])
+      expect(res.body.data.unprocessed).toEqual([])
+      expect(mockTransitionService.transition).toHaveBeenCalledWith({
+        rsvpId: rsvpId1,
+        toStatus: 'rejected',
+        actorId: ownerId,
+      })
+      expect(mockTransitionService.transition).not.toHaveBeenCalledWith(
+        expect.objectContaining({ toStatus: 'approved' }),
+      )
     })
   })
 

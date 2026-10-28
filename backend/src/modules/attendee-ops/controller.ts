@@ -195,6 +195,11 @@ export async function getEventRsvps(
               year: true,
             },
           },
+          checkin: {
+            select: {
+              checkedInAt: true,
+            },
+          },
         },
       }),
     ])
@@ -206,6 +211,8 @@ export async function getEventRsvps(
       user: item.user,
       status: item.status,
       answers: item.answers,
+      checkedIn: !!item.checkin,
+      checkedInAt: item.checkin?.checkedInAt ? item.checkin.checkedInAt.toISOString() : null,
       createdAt: item.createdAt.toISOString(),
     }))
 
@@ -238,6 +245,8 @@ export async function patchRsvp(
   const body = req.body as PatchRsvpBody
 
   try {
+    // PATCH /rsvps/:id uses rsvp ID not event ID, so requireClubOwner cannot run here.
+    // Must manually verify: rsvp -> event -> club.ownerId === caller.
     const rsvp = await prisma.rsvp.findUnique({
       where: { id: rsvpId },
       include: {
@@ -295,6 +304,7 @@ export async function bulkApproveRsvps(
   }
 
   const body = req.body as BulkApproveRsvpsBody
+  const targetStatus = body.status ?? 'approved'
   const uniqueIds = [...new Set(body.rsvpIds)]
 
   try {
@@ -307,8 +317,8 @@ export async function bulkApproveRsvps(
     })
 
     const foundMap = new Map(existingRsvps.map((r) => [r.id, r]))
-    const approved: string[] = []
-    const unapproved: Array<{ rsvpId: string; reason: string }> = []
+    const processed: string[] = []
+    const unprocessed: Array<{ rsvpId: string; reason: string }> = []
 
     const transitionService = getRsvpTransitionService()
     let capacityExhausted = false
@@ -317,34 +327,34 @@ export async function bulkApproveRsvps(
       const rsvp = foundMap.get(rsvpId)
 
       if (!rsvp) {
-        unapproved.push({ rsvpId, reason: 'RSVP does not belong to this event' })
+        unprocessed.push({ rsvpId, reason: 'RSVP does not belong to this event' })
         continue
       }
 
-      if (rsvp.status === 'approved') {
-        approved.push(rsvpId)
+      if (rsvp.status === targetStatus) {
+        processed.push(rsvpId)
         continue
       }
 
-      if (capacityExhausted) {
-        unapproved.push({ rsvpId, reason: 'Event capacity reached' })
+      if (targetStatus === 'approved' && capacityExhausted) {
+        unprocessed.push({ rsvpId, reason: 'Event capacity reached' })
         continue
       }
 
       const result = await transitionService.transition({
         rsvpId,
-        toStatus: 'approved',
+        toStatus: targetStatus,
         actorId: req.user!.id,
       })
 
       if (result.success) {
-        approved.push(rsvpId)
+        processed.push(rsvpId)
       } else {
         if (result.error?.code === 'EVENT_FULL') {
           capacityExhausted = true
-          unapproved.push({ rsvpId, reason: 'Event capacity reached' })
+          unprocessed.push({ rsvpId, reason: 'Event capacity reached' })
         } else {
-          unapproved.push({ rsvpId, reason: result.error?.message || 'Transition failed' })
+          unprocessed.push({ rsvpId, reason: result.error?.message || 'Transition failed' })
         }
       }
     }
@@ -352,8 +362,9 @@ export async function bulkApproveRsvps(
     res.json({
       ok: true,
       data: {
-        approved,
-        unapproved,
+        status: targetStatus,
+        processed,
+        unprocessed,
       },
       error: null,
     })

@@ -87,11 +87,27 @@ export const PatchRsvpBodySchema = z.object({
 
 export type PatchRsvpBody = z.infer<typeof PatchRsvpBodySchema>
 
-export const BulkApproveRsvpsBodySchema = z.object({
+export const BulkRsvpStatusBodySchema = z.object({
+  status: z.enum(['approved', 'rejected', 'waitlist']).default('approved'),
   rsvpIds: z.array(z.string().uuid()).min(1, 'Provide at least one RSVP ID').max(100, 'Maximum 100 RSVPs per bulk operation'),
 })
 
-export type BulkApproveRsvpsBody = z.infer<typeof BulkApproveRsvpsBodySchema>
+export type BulkRsvpStatusBody = z.infer<typeof BulkRsvpStatusBodySchema>
+export { BulkRsvpStatusBodySchema as BulkApproveRsvpsBodySchema }
+export type BulkApproveRsvpsBody = BulkRsvpStatusBody
+
+export const BulkRsvpResultSchema = z.object({
+  status: z.enum(['approved', 'rejected', 'waitlist']),
+  processed: z.array(z.string().uuid()),
+  unprocessed: z.array(
+    z.object({
+      rsvpId: z.string().uuid(),
+      reason: z.string(),
+    }),
+  ),
+})
+
+export type BulkRsvpResult = z.infer<typeof BulkRsvpResultSchema>
 
 // ── AN-03: Payment Verification ─────────────────────────────────────────────
 export const PAYMENT_STATUSES = ['pending', 'verified', 'rejected'] as const
