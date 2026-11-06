@@ -1,0 +1,48 @@
+﻿{
+  "description": "Example response for GET /api/events/:id/rsvp-form",
+  "request": {
+    "method": "GET",
+    "path": "/api/events/e1a2b3c4-0000-0000-0000-000000000001/rsvp-form"
+  },
+  "response": {
+    "ok": true,
+    "data": {
+      "eventId": "e1a2b3c4-0000-0000-0000-000000000001",
+      "fields": [
+        {
+          "id": "f1000000-0000-0000-0000-000000000001",
+          "label": "Full Name",
+          "type": "text",
+          "required": true,
+          "position": 0,
+          "options": null
+        },
+        {
+          "id": "f1000000-0000-0000-0000-000000000002",
+          "label": "Which year are you studying in?",
+          "type": "select",
+          "required": true,
+          "position": 1,
+          "options": ["1st Year", "2nd Year", "3rd Year", "4th Year"]
+        },
+        {
+          "id": "f1000000-0000-0000-0000-000000000003",
+          "label": "What topics interest you?",
+          "type": "checkbox",
+          "required": false,
+          "position": 2,
+          "options": ["Web Dev", "AI/ML", "Cybersecurity", "App Dev"]
+        },
+        {
+          "id": "f1000000-0000-0000-0000-000000000004",
+          "label": "Any additional comments?",
+          "type": "textarea",
+          "required": false,
+          "position": 3,
+          "options": null
+        }
+      ]
+    },
+    "error": null
+  }
+}

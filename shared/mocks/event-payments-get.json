@@ -1,0 +1,32 @@
+﻿{
+  "description": "Example response for GET /api/events/:id/payments",
+  "request": {
+    "method": "GET",
+    "path": "/api/events/e1a2b3c4-0000-0000-0000-000000000001/payments"
+  },
+  "response": {
+    "ok": true,
+    "data": {
+      "items": [
+        {
+          "id": "p1a2b3c4-0000-0000-0000-000000000001",
+          "rsvpId": "r1a2b3c4-0000-0000-0000-000000000001",
+          "screenshotUrl": "https://res.cloudinary.com/demo/image/upload/sample.jpg",
+          "status": "pending",
+          "createdAt": "2026-10-22T00:00:00.000Z",
+          "rsvp": {
+            "userId": "u1a2b3c4-0000-0000-0000-000000000002",
+            "user": {
+              "name": "Jane Student",
+              "email": "jane@example.com"
+            }
+          }
+        }
+      ],
+      "page": 1,
+      "limit": 20,
+      "total": 1
+    },
+    "error": null
+  }
+}

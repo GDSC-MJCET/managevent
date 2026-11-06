@@ -1,0 +1,17 @@
+﻿{
+  "description": "Example response for POST /api/events/:id/checkin/:rsvpId",
+  "request": {
+    "method": "POST",
+    "path": "/api/events/e1a2b3c4-0000-0000-0000-000000000001/checkin/r1a2b3c4-0000-0000-0000-000000000001"
+  },
+  "response": {
+    "ok": true,
+    "data": {
+      "id": "c1a2b3c4-0000-0000-0000-000000000001",
+      "rsvpId": "r1a2b3c4-0000-0000-0000-000000000001",
+      "checkedInAt": "2026-10-22T00:10:00.000Z",
+      "checkedInBy": "u1a2b3c4-0000-0000-0000-000000000001"
+    },
+    "error": null
+  }
+}

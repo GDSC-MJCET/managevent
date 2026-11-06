@@ -1,0 +1,18 @@
+﻿{
+  "description": "Example response for POST /api/events/:id/rsvps/bulk",
+  "request": {
+    "method": "POST",
+    "path": "/api/events/e1a2b3c4-0000-0000-0000-000000000001/rsvps/bulk",
+    "body": {
+      "rsvpIds": ["r1a2b3c4-0000-0000-0000-000000000001"]
+    }
+  },
+  "response": {
+    "ok": true,
+    "data": {
+      "approved": ["r1a2b3c4-0000-0000-0000-000000000001"],
+      "unapproved": []
+    },
+    "error": null
+  }
+}

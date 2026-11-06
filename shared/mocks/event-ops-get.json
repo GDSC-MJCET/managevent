@@ -1,0 +1,17 @@
+﻿{
+  "description": "Example response for GET /api/events/:id/ops",
+  "request": {
+    "method": "GET",
+    "path": "/api/events/e1a2b3c4-0000-0000-0000-000000000001/ops"
+  },
+  "response": {
+    "ok": true,
+    "data": {
+      "eventId": "e1a2b3c4-0000-0000-0000-000000000001",
+      "registeredCount": 50,
+      "approvedCount": 35,
+      "checkedInCount": 28
+    },
+    "error": null
+  }
+}

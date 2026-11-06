@@ -1,0 +1,18 @@
+﻿{
+  "description": "Example response for PATCH /api/rsvps/:id",
+  "request": {
+    "method": "PATCH",
+    "path": "/api/rsvps/r1a2b3c4-0000-0000-0000-000000000001",
+    "body": {
+      "status": "approved"
+    }
+  },
+  "response": {
+    "ok": true,
+    "data": {
+      "id": "r1a2b3c4-0000-0000-0000-000000000001",
+      "status": "approved"
+    },
+    "error": null
+  }
+}
