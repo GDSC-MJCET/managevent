@@ -3,6 +3,7 @@ import express from 'express'
 import { allowedOrigins, env } from './config/env.js'
 import { prisma } from './db/index.js'
 import { errorHandler, notFoundHandler } from './lib/errors.js'
+import { eventsModuleRouter } from './modules/events/index.js'
 
 export const app = express()
 
@@ -40,6 +41,8 @@ app.get('/api/health', async (_req, res) => {
     })
   }
 })
+
+app.use('/api', eventsModuleRouter)
 
 app.use(notFoundHandler)
 app.use(errorHandler)
