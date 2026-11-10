@@ -19,6 +19,17 @@ declare global {
 
 const VALID_ROLES = ['student', 'club_admin', 'super_admin'] as const
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+// AL-04: fake-user mode. Teammates can build flows against the guards before
+// their own auth wiring lands. Guards accept any request as a demo student.
+// requireApprovedAttendee passes immediately in this mode (README 4.1).
+export function isFakeUserMode(): boolean {
+  return env.FAKE_CLIENT_AUTH === true
+}
+
+const FAKE_USER: AuthUser = { id: '00000000-0000-0000-0000-000000000000', role: 'student' }
+
 export function verifyJwtToken(token: string): AuthUser | null {
   const secret = env.JWT_SECRET
   if (!secret) {
@@ -105,6 +116,11 @@ export function parseOptionalAuth(req: Request): void {
 }
 
 export function requireAuth(req: Request, _res: Response, next: NextFunction): void {
+  if (isFakeUserMode() && !req.headers.authorization) {
+    req.user = FAKE_USER
+    return next()
+  }
+
   const authHeader = req.headers.authorization
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return next(new ApiError('UNAUTHENTICATED', 'Authentication required'))
@@ -165,6 +181,58 @@ export async function requireClubOwner(req: Request, _res: Response, next: NextF
 
     if (event.club.ownerId !== user.id) {
       return next(new ApiError('FORBIDDEN', 'Only the club owner can perform this action'))
+    }
+
+    next()
+  } catch (err) {
+    next(err)
+  }
+}
+
+// AL-04 / BR-L1: 403 unless the user has an `approved` RSVP for the event.
+// Club owner of the event always passes. In fake-user mode this guard passes
+// immediately so Amar's socket/live-room work is never blocked.
+export async function requireApprovedAttendee(req: Request, _res: Response, next: NextFunction): Promise<void> {
+  if (isFakeUserMode()) {
+    return next()
+  }
+
+  const user = req.user
+  if (!user) {
+    return next(new ApiError('UNAUTHENTICATED', 'Authentication required'))
+  }
+
+  const rawId = req.params.id ?? req.params.eventId
+  const eventId = Array.isArray(rawId) ? rawId[0] : rawId
+  if (!eventId || !UUID_REGEX.test(eventId)) {
+    return next(new ApiError('VALIDATION', 'Invalid event ID'))
+  }
+
+  try {
+    const event = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: {
+        id: true,
+        club: { select: { ownerId: true } },
+      },
+    })
+
+    if (!event) {
+      return next(new ApiError('NOT_FOUND', 'Event not found'))
+    }
+
+    // Club owner always passes (README 4.1)
+    if (event.club.ownerId === user.id) {
+      return next()
+    }
+
+    const rsvp = await prisma.rsvp.findUnique({
+      where: { eventId_userId: { eventId, userId: user.id } },
+      select: { status: true },
+    })
+
+    if (!rsvp || rsvp.status !== 'approved') {
+      return next(new ApiError('NOT_APPROVED', 'An approved RSVP is required for this event'))
     }
 
     next()
