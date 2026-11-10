@@ -5,6 +5,13 @@ import { prisma } from './db/index.js'
 import { errorHandler, notFoundHandler } from './lib/errors.js'
 
 import { attendeeOpsRouter } from './modules/attendee-ops/router.js'
+import { authRsvpRouter } from './modules/auth-rsvp/router.js'
+import { setRsvpTransitionService } from './modules/attendee-ops/services/rsvpTransitionProvider.js'
+import { rsvpService } from './modules/auth-rsvp/services/rsvpService.js'
+
+// AL-05/AL-07: Ali's RSVP engine is registered so Anas's attendee-ops
+// endpoints can call rsvpService.transition() at runtime (BR-R10).
+setRsvpTransitionService(rsvpService)
 
 export const app = express()
 
@@ -43,16 +50,8 @@ app.get('/api/health', async (_req, res) => {
   }
 })
 
+app.use('/api', authRsvpRouter)
 app.use('/api', attendeeOpsRouter)
-
-// TODO(AL-04/AL-05): After Ali's rsvpService.transition() is implemented (AL-07),
-// register it here before the router is mounted so all status-changing endpoints function at runtime:
-//
-//   import { setRsvpTransitionService } from './modules/attendee-ops/services/rsvpTransitionProvider.js'
-//   import { rsvpService } from './modules/auth-rsvp/services/rsvpService.js'  // Ali's module path
-//   setRsvpTransitionService(rsvpService)
-//
-// Until then, PATCH /api/rsvps/:id, POST bulk, and PATCH /api/payments/:rsvpId return HTTP 500 at runtime.
 
 app.use(notFoundHandler)
 app.use(errorHandler)
