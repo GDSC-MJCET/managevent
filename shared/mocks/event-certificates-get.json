@@ -1,0 +1,33 @@
+{
+  "request": {
+    "params": {
+      "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    },
+    "headers": {
+      "Authorization": "Bearer <club-admin-jwt-token>"
+    }
+  },
+  "response": {
+    "ok": true,
+    "data": {
+      "event_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "count": 1,
+      "certificates": [
+        {
+          "id": "77777777-7777-4777-8777-777777777771",
+          "event_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "user_id": "33333333-3333-4333-8333-333333333333",
+          "file_url": "https://res.cloudinary.com/managevent/raw/upload/v1/certs/hackathon-merit-cert.pdf",
+          "issued_at": "2026-11-19T17:00:00.000Z",
+          "user": {
+            "id": "33333333-3333-4333-8333-333333333333",
+            "name": "Zaid Khan",
+            "email": "zaid@mjcet.ac.in",
+            "roll_number": "1604-22-733-042"
+          }
+        }
+      ]
+    },
+    "error": null
+  }
+}
