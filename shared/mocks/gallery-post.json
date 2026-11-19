@@ -1,0 +1,38 @@
+{
+  "request": {
+    "items": [
+      {
+        "file_url": "https://res.cloudinary.com/managevent/image/upload/v1/gallery/keynote-speech.jpg",
+        "caption": "Opening keynote on AI by Dr. Farhan",
+        "position": 0
+      },
+      {
+        "file_url": "https://res.cloudinary.com/managevent/image/upload/v1/gallery/hackathon-kickoff.jpg",
+        "caption": "Teams gearing up for the 24h hackathon",
+        "position": 1
+      }
+    ]
+  },
+  "response": {
+    "ok": true,
+    "data": {
+      "items": [
+        {
+          "id": "c1a2b3c4-d5e6-4f7a-8b9c-0d1e2f3a4b5c",
+          "event_id": "a0000000-0000-0000-0000-000000000001",
+          "file_url": "https://res.cloudinary.com/managevent/image/upload/v1/gallery/keynote-speech.jpg",
+          "caption": "Opening keynote on AI by Dr. Farhan",
+          "position": 0
+        },
+        {
+          "id": "c2a3b4c5-d6e7-4f8a-9b0c-1d2e3f4a5b6c",
+          "event_id": "a0000000-0000-0000-0000-000000000001",
+          "file_url": "https://res.cloudinary.com/managevent/image/upload/v1/gallery/hackathon-kickoff.jpg",
+          "caption": "Teams gearing up for the 24h hackathon",
+          "position": 1
+        }
+      ]
+    },
+    "error": null
+  }
+}
